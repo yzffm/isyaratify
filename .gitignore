@@ -1,0 +1,44 @@
+# Dokumen kerja lokal (tidak dipush ke GitHub)
+/AGENTS.md
+/Technical-Docs.md
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+key.properties
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# Flutter / Dart
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/build/
+frontend/.packages
+frontend/.pub-cache/
+frontend/.pub/
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/app/debug/
+frontend/android/app/profile/
+frontend/android/app/release/
+frontend/coverage/
+
+# ML (artefak besar dan lingkungan Python)
+ml/.venv/
+ml/**/__pycache__/
+ml/**/.ipynb_checkpoints/
+ml/data/
+ml/artifacts/*
+!ml/artifacts/.gitkeep
+
