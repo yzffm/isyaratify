@@ -45,4 +45,3 @@ class _IsyaratifyAppState extends State<IsyaratifyApp> {
     );
   }
 }
-
