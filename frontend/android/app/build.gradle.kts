@@ -24,7 +24,11 @@ android {
         applicationId = "com.isyaratify.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // MediaPipe Tasks Vision Android membutuhkan minimum API 24 (Android 7.0).
+        // Dokumentasi resmi:
+        // - https://ai.google.dev/edge/mediapipe/solutions/setup_android
+        // - https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/android
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
