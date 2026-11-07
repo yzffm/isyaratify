@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:isyaratify/controllers/practice_controller.dart';
 import 'package:isyaratify/core/errors/app_exceptions.dart';
 import 'package:isyaratify/models/hand_landmark_model.dart';
-import 'package:isyaratify/platform/hand_tracking_platform.dart';
 import 'package:isyaratify/services/hand_tracking_service.dart';
 
 class _FakeService implements HandTrackingService {
@@ -18,7 +17,9 @@ class _FakeService implements HandTrackingService {
   }
 
   @override
-  Stream<HandLandmarkFrame> start() => const Stream.empty();
+  Stream<HandLandmarkFrame> start() => failInit
+      ? Stream<HandLandmarkFrame>.error(const HandTrackingException('gagal'))
+      : const Stream.empty();
 
   @override
   Future<void> stop() async => stopCalls++;
@@ -29,9 +30,9 @@ class _FakeService implements HandTrackingService {
 
 void main() {
   test(
-    'stub platform mengikuti kontrak dan melaporkan belum diimplementasikan',
+    'fake HandTrackingService mengikuti kontrak dan melaporkan error saat gagal',
     () async {
-      final service = createPlatformHandTrackingService();
+      final service = _FakeService(failInit: true);
       expect(service, isA<HandTrackingService>());
       await expectLater(
         service.initialize(),
@@ -44,6 +45,8 @@ void main() {
       await service.stop();
       await service.dispose();
       await service.dispose(); // aman dipanggil berulang
+      expect(service.stopCalls, 1);
+      expect(service.disposeCalls, 2);
     },
   );
 
