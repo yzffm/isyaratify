@@ -3,22 +3,29 @@ import 'package:provider/provider.dart';
 
 import '../../controllers/practice_controller.dart';
 import '../../platform/hand_tracking_platform.dart';
+import '../../services/hand_tracking_service.dart';
 import '../../widgets/placeholder_scaffold.dart';
 
 /// Placeholder practice. Menyiapkan alur lifecycle (initialize/dispose) yang
 /// akan dipakai spike kamera + MediaPipe. Belum ada preview kamera.
 class PracticeView extends StatelessWidget {
-  const PracticeView({super.key, this.controllerFactory});
+  const PracticeView({
+    super.key,
+    this.serviceFactory = createPlatformHandTrackingService,
+    this.controllerFactory,
+  });
 
-  /// Untuk test; default memakai service platform.
+  /// Factory untuk membuat [HandTrackingService]; default memakai service platform.
+  final HandTrackingService Function() serviceFactory;
+
+  /// Untuk test; default memakai [serviceFactory].
   final PracticeController Function()? controllerFactory;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<PracticeController>(
       create: (_) =>
-          (controllerFactory?.call() ??
-                PracticeController(createPlatformHandTrackingService()))
+          (controllerFactory?.call() ?? PracticeController(serviceFactory()))
             ..initialize(),
       child: const _PracticeBody(),
     );
