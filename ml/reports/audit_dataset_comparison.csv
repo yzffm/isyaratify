@@ -1,0 +1,4 @@
+Nama Dataset,Jumlah Kelas,Total Gambar,Total Berhasil,Terdeteksi 1 Tangan,Terdeteksi 2 Tangan,Total Gagal,Failure Rate (%),Kelas Gagal >50%
+Kandidat 1 (Kaggle ~312 - UMN),26,312,281,195,86,31,9.94,1
+Kandidat 2 (Kaggle ~11.500 - Unimal),26,11470,9070,5446,3624,2400,20.92,0
+Kandidat 3 (Mendeley 796 MB),26,8040,5763,3219,2544,2277,28.32,1

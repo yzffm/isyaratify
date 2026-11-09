@@ -1,6 +1,8 @@
 import 'package:go_router/go_router.dart';
 
 import '../../controllers/auth_controller.dart';
+import '../../platform/hand_tracking_platform.dart';
+import '../../services/hand_tracking_service.dart';
 import '../../views/auth/login_view.dart';
 import '../../views/dictionary/dictionary_view.dart';
 import '../../views/home/dashboard_view.dart';
@@ -10,7 +12,11 @@ import '../../views/splash/splash_view.dart';
 import 'app_routes.dart';
 
 abstract final class AppRouter {
-  static GoRouter create(AuthController auth) {
+  static GoRouter create(
+    AuthController auth, {
+    HandTrackingService Function() handTrackingServiceFactory =
+        createPlatformHandTrackingService,
+  }) {
     return GoRouter(
       initialLocation: AppRoutes.splash,
       refreshListenable: auth,
@@ -44,7 +50,8 @@ abstract final class AppRouter {
         ),
         GoRoute(
           path: AppRoutes.practice,
-          builder: (context, state) => const PracticeView(),
+          builder: (context, state) =>
+              PracticeView(serviceFactory: handTrackingServiceFactory),
         ),
         GoRoute(
           path: AppRoutes.about,
