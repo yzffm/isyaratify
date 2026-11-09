@@ -7,7 +7,7 @@ import '../../views/auth/login_view.dart';
 import '../../views/dictionary/dictionary_view.dart';
 import '../../views/home/dashboard_view.dart';
 import '../../views/practice/practice_view.dart';
-import '../../views/profile/about_us_screen.dart';
+import '../../views/profile/about_us_view.dart';
 import '../../views/splash/splash_view.dart';
 import 'app_routes.dart';
 
@@ -55,7 +55,7 @@ abstract final class AppRouter {
         ),
         GoRoute(
           path: AppRoutes.about,
-          builder: (context, state) => const AboutUsScreen(),
+          builder: (context, state) => const AboutUsView(),
         ),
       ],
     );

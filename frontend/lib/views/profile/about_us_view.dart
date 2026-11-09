@@ -1,18 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Data satu anggota tim.
-class TeamMember {
-  final String name;
-  final String role;
+import '../../models/team_member_model.dart';
 
-  const TeamMember({required this.name, required this.role});
-
-  /// Huruf pertama untuk avatar (aman kalau nama kosong).
-  String get initial => name.isEmpty ? '?' : name[0].toUpperCase();
-}
-
-class AboutUsScreen extends StatelessWidget {
-  const AboutUsScreen({super.key});
+class AboutUsView extends StatelessWidget {
+  const AboutUsView({super.key});
 
   static const List<TeamMember> _teamMembers = [
     TeamMember(
