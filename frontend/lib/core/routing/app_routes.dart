@@ -6,7 +6,7 @@ abstract final class AppRoutes {
   static const dictionary = '/dictionary';
   static const practice = '/practice';
   static const about = '/about';
-  
+
   /// Route yang boleh diakses tanpa login.
   static const publicRoutes = {splash, login};
 }

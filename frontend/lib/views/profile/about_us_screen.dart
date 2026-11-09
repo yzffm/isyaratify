@@ -19,30 +19,12 @@ class AboutUsScreen extends StatelessWidget {
       name: 'Yusuf Maulana',
       role: 'Project Lead, Requirement, Dokumentasi',
     ),
-    TeamMember(
-      name: 'Salsabila',
-      role: 'Flutter UI/UX & Design System',
-    ),
-    TeamMember(
-      name: 'Ayesha',
-      role: 'Flutter App Logic & State Management',
-    ),
-    TeamMember(
-      name: 'Siska',
-      role: 'Web Camera & MediaPipe JS',
-    ),
-    TeamMember(
-      name: 'Wishang',
-      role: 'Android Camera & MediaPipe Native',
-    ),
-    TeamMember(
-      name: 'Muhammad Ilham',
-      role: 'ML/Data Engineer & Hugging Face',
-    ),
-    TeamMember(
-      name: 'Ellyka',
-      role: 'Supabase, QA, DevOps',
-    ),
+    TeamMember(name: 'Salsabila', role: 'Flutter UI/UX & Design System'),
+    TeamMember(name: 'Ayesha', role: 'Flutter App Logic & State Management'),
+    TeamMember(name: 'Siska', role: 'Web Camera & MediaPipe JS'),
+    TeamMember(name: 'Wishang', role: 'Android Camera & MediaPipe Native'),
+    TeamMember(name: 'Muhammad Ilham', role: 'ML/Data Engineer & Hugging Face'),
+    TeamMember(name: 'Ellyka', role: 'Supabase, QA, DevOps'),
   ];
 
   @override
