@@ -16,11 +16,23 @@ Aplikasi pembelajaran **alfabet BISINDO** (huruf A–Z, gestur statis) berbasis 
 
 ## Menjalankan frontend
 
+CI menggunakan **Flutter 3.38.6 (Dart 3.10.7)**. Gunakan versi yang sama agar hasil format dan analisis konsisten.
+
 ```bash
 cd frontend
 flutter pub get
 flutter run -d chrome
 ```
+
+Sebelum melakukan `git push` atau membuka Pull Request, jalankan pemeriksaan berikut dari folder `frontend/`:
+
+```bash
+dart format --output=none --set-exit-if-changed lib test
+flutter analyze
+flutter test
+```
+
+> **Tip editor:** Aktifkan fitur *format-on-save* untuk bahasa Dart di editor Anda (misalnya `"editor.formatOnSave": true` untuk `[dart]` pada pengaturan VS Code lokal; folder `.vscode/` diabaikan oleh `.gitignore`).
 
 Build:
 
