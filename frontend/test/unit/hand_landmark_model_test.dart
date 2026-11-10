@@ -85,15 +85,31 @@ void main() {
       );
     });
 
-    test('menolak sisi ganda', () {
-      expect(
-        () => HandLandmarkFrame.fromHands(
+    test(
+      'menolak sisi ganda secara default, atau urutkan spasial bila resolveDuplicateSides aktif',
+      () {
+        expect(
+          () => HandLandmarkFrame.fromHands(
+            timestamp: _t,
+            hands: [_hand(HandSide.left), _hand(HandSide.left)],
+          ),
+          throwsA(isA<LandmarkContractException>()),
+        );
+
+        final resolved = HandLandmarkFrame.fromHands(
           timestamp: _t,
-          hands: [_hand(HandSide.left), _hand(HandSide.left)],
-        ),
-        throwsA(isA<LandmarkContractException>()),
-      );
-    });
+          hands: [
+            _hand(HandSide.left, base: 10),
+            _hand(HandSide.left, base: 2),
+          ],
+          resolveDuplicateSides: true,
+        );
+        expect(resolved.isHandednessInferred, isTrue);
+        expect(resolved.left?.wrist.x, 2);
+        expect(resolved.right?.wrist.x, 10);
+        expect(resolved.toCanonicalFeatureVector().length, 128);
+      },
+    );
 
     test('konstruktor menolak tangan di slot yang salah', () {
       expect(

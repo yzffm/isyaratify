@@ -1,12 +1,11 @@
 {
-    "name": "isyaratify",
-    "short_name": "isyaratify",
+    "name": "Isyaratify",
+    "short_name": "Isyaratify",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "Pembelajaran alfabet BISINDO berbasis kamera",
-    "orientation": "portrait-primary",
+    "background_color": "#F8FAFC",
+    "theme_color": "#2E6BE6",
+    "description": "Pembelajaran alfabet statis BISINDO berbasis kamera dan on-device ML.",
     "prefer_related_applications": false,
     "icons": [
         {

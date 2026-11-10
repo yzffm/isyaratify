@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0-heuristic-baseline",
+  "labels": [
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+    "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+  ],
+  "input_dimension": 128,
+  "confidence_threshold": 0.60,
+  "normalize_features": true,
+  "is_placeholder": true
+}

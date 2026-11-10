@@ -24,6 +24,9 @@ class _FakeHandTrackingService implements HandTrackingService {
 
   @override
   Future<void> dispose() async {}
+
+  @override
+  Widget buildPreview(BuildContext context) => const SizedBox.shrink();
 }
 
 void main() {

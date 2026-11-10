@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../../controllers/auth_controller.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/routing/app_routes.dart';
 
@@ -20,7 +22,10 @@ class _SplashViewState extends State<SplashView> {
   void initState() {
     super.initState();
     _timer = Timer(const Duration(milliseconds: 1200), () {
-      if (mounted) context.go(AppRoutes.login);
+      if (!mounted) return;
+      final auth = context.read<AuthController?>();
+      final isAuthed = auth?.isAuthenticated ?? false;
+      context.go(isAuthed ? AppRoutes.home : AppRoutes.login);
     });
   }
 

@@ -1,8 +1,10 @@
+import 'package:flutter/widgets.dart';
+
 import '../core/errors/app_exceptions.dart';
 import '../models/hand_landmark_model.dart';
 import '../services/hand_tracking_service.dart';
 
-/// Fallback untuk platform tanpa implementasi.
+/// Fallback untuk platform tanpa implementasi kamera.
 class UnsupportedHandTrackingService implements HandTrackingService {
   @override
   Future<void> initialize() async =>
@@ -18,6 +20,9 @@ class UnsupportedHandTrackingService implements HandTrackingService {
 
   @override
   Future<void> dispose() async {}
+
+  @override
+  Widget buildPreview(BuildContext context) => const SizedBox.shrink();
 }
 
 HandTrackingService createPlatformHandTrackingService() =>

@@ -1,0 +1,8 @@
+# Lingkungan eksperimen & ekstraksi landmark ML Isyaratify (Google Colab / Python 3.10+)
+mediapipe>=0.10.14
+opencv-python>=4.9.0
+numpy>=1.26.0
+pandas>=2.2.0
+scikit-learn>=1.4.0
+matplotlib>=3.8.0
+kagglehub>=0.2.5

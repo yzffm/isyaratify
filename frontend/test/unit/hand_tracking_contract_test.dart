@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:isyaratify/controllers/practice_controller.dart';
 import 'package:isyaratify/core/errors/app_exceptions.dart';
@@ -46,6 +47,9 @@ class _FakeService implements HandTrackingService {
 
   @override
   Future<void> dispose() async => disposeCalls++;
+
+  @override
+  Widget buildPreview(BuildContext context) => const SizedBox.shrink();
 }
 
 void main() {
