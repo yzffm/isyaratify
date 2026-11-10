@@ -49,6 +49,12 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Tentang Kami'));
+    await tester.pumpAndSettle();
+    expect(find.text('Visi Produk'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('Latihan'));
     await tester.pumpAndSettle();
     expect(find.text('Pelacakan tangan siap.'), findsOneWidget);

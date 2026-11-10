@@ -33,6 +33,12 @@ class DashboardView extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         TextButton.icon(
+          onPressed: () => context.push(AppRoutes.about),
+          icon: const Icon(Icons.info_outline),
+          label: const Text('Tentang Kami'),
+        ),
+        const SizedBox(height: 12),
+        TextButton.icon(
           onPressed: context.read<AuthController>().signOut,
           icon: const Icon(Icons.logout),
           label: const Text('Keluar'),
