@@ -229,8 +229,11 @@ class PracticeController extends ChangeNotifier {
   Future<void> pauseForBackground() async {
     if (_disposed || _status != PracticeStatus.ready) return;
     _pausedByLifecycle = true;
-    await _frameSubscription?.cancel();
+    final sub = _frameSubscription;
     _frameSubscription = null;
+    if (sub != null) {
+      unawaited(sub.cancel());
+    }
     try {
       await _tracking.stop();
     } catch (_) {}
@@ -246,8 +249,11 @@ class PracticeController extends ChangeNotifier {
   Future<void> stopSession() async {
     if (_disposed) return;
     _pausedByLifecycle = false;
-    await _frameSubscription?.cancel();
+    final sub = _frameSubscription;
     _frameSubscription = null;
+    if (sub != null) {
+      unawaited(sub.cancel());
+    }
     try {
       await _tracking.stop();
     } catch (_) {}

@@ -2,11 +2,15 @@
 abstract final class AppRoutes {
   static const root = '/';
   static const splash = '/splash';
+  static const onboarding = '/onboarding';
   static const login = '/login';
+  static const register = '/register';
   static const home = '/home';
   static const dictionary = '/dictionary';
   static const practice = '/practice';
   static const quest = '/quest';
+  static const leaderboard = '/leaderboard';
+  static const profile = '/profile';
   static const progress = '/progress';
   static const about = '/about';
 
@@ -19,5 +23,5 @@ abstract final class AppRoutes {
   }
 
   /// Route yang boleh diakses tanpa login.
-  static const publicRoutes = {splash, login};
+  static const publicRoutes = {splash, onboarding, login, register};
 }

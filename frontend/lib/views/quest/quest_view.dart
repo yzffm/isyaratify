@@ -1,13 +1,18 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
+import '../../controllers/progress_controller.dart';
 import '../../controllers/quest_controller.dart';
+import '../../core/layout/breakpoints.dart';
 import '../../core/routing/app_routes.dart';
+import '../../core/theme/app_colors.dart';
+import '../../models/quest_model.dart';
+import '../../widgets/common/state_views.dart';
+import 'quest_widgets.dart';
 
-/// Halaman Misi (Quest) harian dan pencapaian.
+/// Halaman Quest & Pencapaian Lencana Isyaratify.
 class QuestView extends StatefulWidget {
   const QuestView({super.key});
 
@@ -16,147 +21,223 @@ class QuestView extends StatefulWidget {
 }
 
 class _QuestViewState extends State<QuestView> {
-  QuestController? _fallbackController;
+  QuestFilter _selectedFilter = QuestFilter.all;
 
-  QuestController _resolveController(
-    BuildContext context, {
-    bool listen = false,
-  }) {
-    final provided = listen
-        ? context.watch<QuestController?>()
-        : context.read<QuestController?>();
-    if (provided != null) return provided;
-    return _fallbackController ??= QuestController();
+  Future<void> _refreshAll(BuildContext context) async {
+    final questCtrl = context.read<QuestController>();
+    final progressCtrl = context.read<ProgressController>();
+    await Future.wait([questCtrl.loadQuests(), progressCtrl.refreshAll()]);
   }
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      unawaited(_resolveController(context).loadQuests());
-    });
-  }
-
-  @override
-  void dispose() {
-    _fallbackController?.dispose();
-    super.dispose();
+  List<QuestModel> _filterQuests(List<QuestModel> quests) {
+    switch (_selectedFilter) {
+      case QuestFilter.all:
+        return quests;
+      case QuestFilter.active:
+        return quests.where((q) => !q.isCompleted).toList();
+      case QuestFilter.completed:
+        return quests.where((q) => q.isCompleted).toList();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = _resolveController(context, listen: true);
-    final quests = controller.quests;
-    final theme = Theme.of(context);
+    final ext = Theme.of(context).extension<IsyaratifyColors>()!;
+    final layoutSize = AppBreakpoints.of(context);
+    final isExpanded = layoutSize == AppLayoutSize.expanded;
+
+    final questCtrl = context.watch<QuestController>();
+    final progressCtrl = context.watch<ProgressController>();
+
+    final allQuests = questCtrl.quests;
+    final completedQuests = allQuests.where((q) => q.isCompleted).toList();
+    final activeQuests = allQuests.where((q) => !q.isCompleted).toList();
+    final filteredQuests = _filterQuests(allQuests);
+
+    final badges = [...progressCtrl.badges]
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+    final showSkeleton =
+        (questCtrl.isLoading || progressCtrl.isLoading) && allQuests.isEmpty;
+
+    final horizontalPad = layoutSize == AppLayoutSize.compact ? 16.0 : 24.0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Misi & Quest')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  elevation: 0,
-                  color: theme.colorScheme.secondaryContainer,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'Selesaikan misi latihan gestur BISINDO untuk memperoleh '
-                      'bonus XP dan membuka lencana. (${controller.completedCount}/${quests.length} selesai)',
-                      style: TextStyle(
-                        color: theme.colorScheme.onSecondaryContainer,
-                      ),
-                    ),
+      backgroundColor: ext.surfaceCanvas,
+      body: RefreshIndicator(
+        onRefresh: () => _refreshAll(context),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPad,
+            vertical: 20,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: AppBreakpoints.contentMaxWidth,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  QuestHeroBanner(
+                    progress: progressCtrl.progress,
+                    completedQuestsCount: completedQuests.length,
+                    totalQuestsCount: allQuests.length,
+                    earnedBadgesCount: progressCtrl.earnedBadgesCount,
+                    totalBadgesCount: badges.length,
+                    onStartPractice: () => context.push(AppRoutes.practice),
+                    onOpenLeaderboard: () =>
+                        context.push(AppRoutes.leaderboard),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: quests.length,
-                    itemBuilder: (context, index) {
-                      final quest = quests[index];
-                      final firstTarget = quest.targetLetters.isNotEmpty
-                          ? quest.targetLetters.first
-                          : null;
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    quest.isCompleted
-                                        ? Icons.check_circle
-                                        : Icons.flag_outlined,
-                                    color: quest.isCompleted
-                                        ? theme.colorScheme.primary
-                                        : null,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      quest.title,
-                                      style: theme.textTheme.titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                    ),
-                                  ),
-                                  Chip(
-                                    label: Text('+${quest.xpReward} XP'),
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(quest.description),
-                              const SizedBox(height: 10),
-                              LinearProgressIndicator(
-                                value: quest.progressFraction,
-                                minHeight: 8,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Progres: ${quest.currentProgress}/${quest.targetValue}',
-                                    style: theme.textTheme.bodySmall,
-                                  ),
-                                  if (!quest.isCompleted)
-                                    TextButton.icon(
-                                      onPressed: () => context.push(
-                                        AppRoutes.practiceWithTarget(
-                                          firstTarget,
-                                        ),
-                                      ),
-                                      icon: const Icon(Icons.play_arrow),
-                                      label: const Text('Kerjakan'),
-                                    ),
-                                ],
-                              ),
-                            ],
+                  const SizedBox(height: 24),
+                  if (showSkeleton)
+                    _QuestLoadingSkeleton()
+                  else if (isExpanded)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 6,
+                          child: _buildQuestColumn(
+                            context: context,
+                            allQuests: allQuests,
+                            activeCount: activeQuests.length,
+                            completedCount: completedQuests.length,
+                            filteredQuests: filteredQuests,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+                        const SizedBox(width: 24),
+                        Expanded(
+                          flex: 5,
+                          child: BadgeShowcasePanel(
+                            badges: badges,
+                            earnedCount: progressCtrl.earnedBadgesCount,
+                          ),
+                        ),
+                      ],
+                    )
+                  else ...[
+                    _buildQuestColumn(
+                      context: context,
+                      allQuests: allQuests,
+                      activeCount: activeQuests.length,
+                      completedCount: completedQuests.length,
+                      filteredQuests: filteredQuests,
+                    ),
+                    const SizedBox(height: 24),
+                    BadgeShowcasePanel(
+                      badges: badges,
+                      earnedCount: progressCtrl.earnedBadgesCount,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildQuestColumn({
+    required BuildContext context,
+    required List<QuestModel> allQuests,
+    required int activeCount,
+    required int completedCount,
+    required List<QuestModel> filteredQuests,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        QuestFilterBar(
+          selectedFilter: _selectedFilter,
+          totalCount: allQuests.length,
+          activeCount: activeCount,
+          completedCount: completedCount,
+          onSelectFilter: (filter) {
+            setState(() {
+              _selectedFilter = filter;
+            });
+          },
+          onRefresh: () => _refreshAll(context),
+        ),
+        const SizedBox(height: 16),
+        if (allQuests.isEmpty)
+          AppEmptyState(
+            title: 'Belum ada misi aktif',
+            description:
+                'Misi tantangan alfabet BISINDO akan tampil di sini setelah dimuat. Kamu tetap bisa langsung berlatih kamera kapan saja.',
+            icon: Icons.flag_outlined,
+            actionLabel: 'Latihan Bebas',
+            onAction: () => context.push(AppRoutes.practice),
+          )
+        else if (filteredQuests.isEmpty)
+          AppEmptyState(
+            title: _selectedFilter == QuestFilter.completed
+                ? 'Belum ada misi selesai'
+                : 'Semua misi sudah selesai',
+            description: _selectedFilter == QuestFilter.completed
+                ? 'Selesaikan misi latihan gestur statis A–Z untuk melihat pencapaianmu di sini.'
+                : 'Selamat! Kamu sudah menuntaskan misi aktif yang tersedia.',
+            icon: Icons.filter_list_off_outlined,
+            actionLabel: 'Tampilkan Semua Misi',
+            onAction: () {
+              setState(() {
+                _selectedFilter = QuestFilter.all;
+              });
+            },
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filteredQuests.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final quest = filteredQuests[index];
+              return QuestItemCard(
+                quest: quest,
+                onPracticeTap: () => context.push(AppRoutes.practice),
+              );
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _QuestLoadingSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Skeletonizer(
+      enabled: true,
+      child: Column(
+        children: [
+          for (var i = 0; i < 2; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text('Memuat Misi Alfabet BISINDO'),
+                  SizedBox(height: 8),
+                  Text(
+                    'Menyiapkan daftar misi latihan dan target huruf statis...',
+                  ),
+                  SizedBox(height: 12),
+                  LinearProgressIndicator(value: 0.4),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
