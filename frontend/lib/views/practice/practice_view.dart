@@ -241,10 +241,7 @@ class _PracticeBodyState extends State<_PracticeBody> {
       ),
       targetBorderRadius: BorderRadius.circular(16),
       tooltipBorderRadius: BorderRadius.circular(16),
-      tooltipPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 12,
-      ),
+      tooltipPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: PracticeAnalysisSidebar(
         controller: c,
         targetMeta: targetMeta,
