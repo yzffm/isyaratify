@@ -19,6 +19,7 @@ class PracticeStudioHeader extends StatelessWidget {
     required this.targetLetter,
     required this.letters,
     required this.onSelectTarget,
+    this.onStartTour,
   });
 
   final PracticeStatus status;
@@ -26,6 +27,7 @@ class PracticeStudioHeader extends StatelessWidget {
   final String? targetLetter;
   final List<LetterModel> letters;
   final ValueChanged<String?> onSelectTarget;
+  final VoidCallback? onStartTour;
 
   @override
   Widget build(BuildContext context) {
@@ -158,10 +160,42 @@ class PracticeStudioHeader extends StatelessWidget {
             ),
           );
 
+          final tourButton = Tooltip(
+            message: 'Mulai Tur Panduan Studio',
+            child: OutlinedButton.icon(
+              onPressed: onStartTour,
+              icon: const Icon(Icons.help_outline_rounded, size: 18),
+              label: const Text('Panduan'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: ext.borderSubtle),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          );
+
           if (!isWide) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [titleBlock, const SizedBox(height: 14), targetPicker],
+              children: [
+                titleBlock,
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(child: targetPicker),
+                    if (onStartTour != null) ...[
+                      const SizedBox(width: 8),
+                      tourButton,
+                    ],
+                  ],
+                ),
+              ],
             );
           }
 
@@ -170,6 +204,10 @@ class PracticeStudioHeader extends StatelessWidget {
             children: [
               Expanded(child: titleBlock),
               const SizedBox(width: 16),
+              if (onStartTour != null) ...[
+                tourButton,
+                const SizedBox(width: 12),
+              ],
               targetPicker,
             ],
           );

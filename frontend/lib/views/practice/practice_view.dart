@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 import '../../controllers/dictionary_controller.dart';
 import '../../controllers/practice_controller.dart';
 import '../../core/layout/breakpoints.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_text_styles.dart';
 import '../../models/letter_model.dart';
 import '../../platform/hand_tracking_platform.dart';
 import '../../services/hand_tracking_service.dart';
@@ -63,10 +65,47 @@ class _PracticeBody extends StatefulWidget {
 
 class _PracticeBodyState extends State<_PracticeBody> {
   AppLifecycleListener? _lifecycleListener;
+  late final ShowcaseView _showcaseView;
+  final GlobalKey _headerTourKey = GlobalKey();
+  final GlobalKey _cameraTourKey = GlobalKey();
+  final GlobalKey _letterStripTourKey = GlobalKey();
+  final GlobalKey _sidebarTourKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
+    _showcaseView = ShowcaseView.register(
+      blurValue: 1.0,
+      globalTooltipActionConfig: const TooltipActionConfig(
+        position: TooltipActionPosition.inside,
+        alignment: MainAxisAlignment.spaceBetween,
+        gapBetweenContentAndAction: 12,
+      ),
+      globalTooltipActions: [
+        const TooltipActionButton(
+          type: TooltipDefaultActionType.skip,
+          name: 'Lewati',
+          backgroundColor: Colors.transparent,
+          textStyle: TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            fontFamily: AppTextStyles.fontFamily,
+          ),
+        ),
+        const TooltipActionButton(
+          type: TooltipDefaultActionType.next,
+          name: 'Lanjut',
+          backgroundColor: AppColors.accentYellow,
+          textStyle: TextStyle(
+            color: AppColors.onSurface,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            fontFamily: AppTextStyles.fontFamily,
+          ),
+        ),
+      ],
+    );
     _lifecycleListener = AppLifecycleListener(
       onInactive: () {
         if (!mounted) return;
@@ -81,8 +120,18 @@ class _PracticeBodyState extends State<_PracticeBody> {
 
   @override
   void dispose() {
+    _showcaseView.unregister();
     _lifecycleListener?.dispose();
     super.dispose();
+  }
+
+  void _startTour() {
+    _showcaseView.startShowCase([
+      _headerTourKey,
+      _cameraTourKey,
+      _letterStripTourKey,
+      _sidebarTourKey,
+    ]);
   }
 
   @override
@@ -116,34 +165,97 @@ class _PracticeBodyState extends State<_PracticeBody> {
     final cameraColumn = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PracticeCameraStage(
-          controller: c,
-          stageHeight: isWide
-              ? 420
-              : layout == AppLayoutSize.medium
-              ? 340
-              : 260,
-          statusMessage: statusMessage,
+        Showcase(
+          key: _cameraTourKey,
+          title: 'Studio Kamera AI Real-Time',
+          description:
+              'Posisikan tangan di dalam kotak kamera ini. MediaPipe dan model ML kami mendeteksi 21 koordinat sendi tangan dan mengklasifikasikan gestur.',
+          tooltipBackgroundColor: AppColors.primary,
+          textColor: Colors.white,
+          titleTextStyle: AppTextStyles.headlineSm.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+          descTextStyle: AppTextStyles.bodySm.copyWith(
+            color: Colors.white.withValues(alpha: 0.9),
+          ),
+          targetBorderRadius: BorderRadius.circular(20),
+          tooltipBorderRadius: BorderRadius.circular(16),
+          tooltipPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          child: PracticeCameraStage(
+            controller: c,
+            stageHeight: isWide
+                ? 420
+                : layout == AppLayoutSize.medium
+                ? 340
+                : 260,
+            statusMessage: statusMessage,
+          ),
         ),
         const SizedBox(height: 16),
-        PracticeQuickLetterStrip(
-          letters: letters,
-          selectedTarget: c.targetLetter,
-          onSelectTarget: c.setTargetLetter,
+        Showcase(
+          key: _letterStripTourKey,
+          title: 'Pilihan Cepat Alfabet',
+          description:
+              'Ketuk salah satu kartu huruf di strip ini untuk langsung beralih ke mode latihan target huruf tersebut.',
+          tooltipBackgroundColor: AppColors.primary,
+          textColor: Colors.white,
+          titleTextStyle: AppTextStyles.headlineSm.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+          descTextStyle: AppTextStyles.bodySm.copyWith(
+            color: Colors.white.withValues(alpha: 0.9),
+          ),
+          targetBorderRadius: BorderRadius.circular(16),
+          tooltipBorderRadius: BorderRadius.circular(16),
+          tooltipPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          child: PracticeQuickLetterStrip(
+            letters: letters,
+            selectedTarget: c.targetLetter,
+            onSelectTarget: c.setTargetLetter,
+          ),
         ),
       ],
     );
 
-    final sidebarColumn = PracticeAnalysisSidebar(
-      controller: c,
-      targetMeta: targetMeta,
-      onClearTarget: () => c.setTargetLetter(null),
-      onOpenDictionary: () {
-        final router = GoRouter.maybeOf(context);
-        if (router != null) {
-          router.push(AppRoutes.dictionary);
-        }
-      },
+    final sidebarColumn = Showcase(
+      key: _sidebarTourKey,
+      title: 'Panduan Pose & Analisis Hasil',
+      description:
+          'Amati referensi visual bentuk tangan BISINDO, pantau skor kestabilan prediksi, dan catat progres XP latihanmu.',
+      tooltipBackgroundColor: AppColors.primary,
+      textColor: Colors.white,
+      titleTextStyle: AppTextStyles.headlineSm.copyWith(
+        color: Colors.white,
+        fontWeight: FontWeight.bold,
+      ),
+      descTextStyle: AppTextStyles.bodySm.copyWith(
+        color: Colors.white.withValues(alpha: 0.9),
+      ),
+      targetBorderRadius: BorderRadius.circular(16),
+      tooltipBorderRadius: BorderRadius.circular(16),
+      tooltipPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 12,
+      ),
+      child: PracticeAnalysisSidebar(
+        controller: c,
+        targetMeta: targetMeta,
+        onClearTarget: () => c.setTargetLetter(null),
+        onOpenDictionary: () {
+          final router = GoRouter.maybeOf(context);
+          if (router != null) {
+            router.push(AppRoutes.dictionary);
+          }
+        },
+      ),
     );
 
     return Scaffold(
@@ -158,12 +270,34 @@ class _PracticeBodyState extends State<_PracticeBody> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                PracticeStudioHeader(
-                  status: c.status,
-                  statusMessage: statusMessage,
-                  targetLetter: c.targetLetter,
-                  letters: letters,
-                  onSelectTarget: c.setTargetLetter,
+                Showcase(
+                  key: _headerTourKey,
+                  title: 'Status & Mode Latihan',
+                  description:
+                      'Lihat kesiapan deteksi kamera dan ganti antara Mode Latihan Bebas atau Mode Target alfabet tertentu.',
+                  tooltipBackgroundColor: AppColors.primary,
+                  textColor: Colors.white,
+                  titleTextStyle: AppTextStyles.headlineSm.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  descTextStyle: AppTextStyles.bodySm.copyWith(
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                  targetBorderRadius: BorderRadius.circular(16),
+                  tooltipBorderRadius: BorderRadius.circular(16),
+                  tooltipPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: PracticeStudioHeader(
+                    status: c.status,
+                    statusMessage: statusMessage,
+                    targetLetter: c.targetLetter,
+                    letters: letters,
+                    onSelectTarget: c.setTargetLetter,
+                    onStartTour: _startTour,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 if (isWide)
