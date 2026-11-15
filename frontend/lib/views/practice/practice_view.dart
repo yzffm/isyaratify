@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:confetti/confetti.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -64,9 +66,20 @@ class _PracticeBody extends StatefulWidget {
 class _PracticeBodyState extends State<_PracticeBody> {
   AppLifecycleListener? _lifecycleListener;
 
+  /// Controller efek konfeti (package `confetti`).
+  final ConfettiController _confetti = ConfettiController(
+    duration: const Duration(seconds: 2),
+  );
+  late final PracticeController _practice;
+  int _lastCorrect = 0;
+
   @override
   void initState() {
     super.initState();
+    _practice = context.read<PracticeController>();
+    _lastCorrect = _practice.sessionCorrect;
+    _practice.addListener(_onPracticeChanged);
+
     _lifecycleListener = AppLifecycleListener(
       onInactive: () {
         if (!mounted) return;
@@ -79,8 +92,19 @@ class _PracticeBodyState extends State<_PracticeBody> {
     );
   }
 
+  /// Konfeti hanya muncul di Target Practice saat jumlah jawaban benar bertambah.
+  void _onPracticeChanged() {
+    final correct = _practice.sessionCorrect;
+    if (_practice.isTargetPractice && correct > _lastCorrect) {
+      _confetti.play();
+    }
+    _lastCorrect = correct;
+  }
+
   @override
   void dispose() {
+    _practice.removeListener(_onPracticeChanged);
+    _confetti.dispose();
     _lifecycleListener?.dispose();
     super.dispose();
   }
@@ -148,42 +172,67 @@ class _PracticeBodyState extends State<_PracticeBody> {
 
     return Scaffold(
       backgroundColor: ext.surfaceCanvas,
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(layout == AppLayoutSize.compact ? 16 : 24),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: AppBreakpoints.contentMaxWidth,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                PracticeStudioHeader(
-                  status: c.status,
-                  statusMessage: statusMessage,
-                  targetLetter: c.targetLetter,
-                  letters: letters,
-                  onSelectTarget: c.setTargetLetter,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: EdgeInsets.all(layout == AppLayoutSize.compact ? 16 : 24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: AppBreakpoints.contentMaxWidth,
                 ),
-                const SizedBox(height: 20),
-                if (isWide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 7, child: cameraColumn),
-                      const SizedBox(width: 20),
-                      Expanded(flex: 5, child: sidebarColumn),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    PracticeStudioHeader(
+                      status: c.status,
+                      statusMessage: statusMessage,
+                      targetLetter: c.targetLetter,
+                      letters: letters,
+                      onSelectTarget: c.setTargetLetter,
+                    ),
+                    const SizedBox(height: 20),
+                    if (isWide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(flex: 7, child: cameraColumn),
+                          const SizedBox(width: 20),
+                          Expanded(flex: 5, child: sidebarColumn),
+                        ],
+                      )
+                    else ...[
+                      cameraColumn,
+                      const SizedBox(height: 20),
+                      sidebarColumn,
                     ],
-                  )
-                else ...[
-                  cameraColumn,
-                  const SizedBox(height: 20),
-                  sidebarColumn,
-                ],
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+          // Lapisan konfeti di atas konten; tidak menghalangi tap.
+          Align(
+            alignment: Alignment.topCenter,
+            child: IgnorePointer(
+              child: ConfettiWidget(
+                confettiController: _confetti,
+                blastDirection: math.pi / 2, // menembak ke bawah
+                blastDirectionality: BlastDirectionality.explosive,
+                emissionFrequency: 0.05,
+                numberOfParticles: 20,
+                gravity: 0.2,
+                shouldLoop: false,
+                colors: const [
+                  AppColors.primary,
+                  AppColors.primaryContainer,
+                  AppColors.accentYellow,
+                  AppColors.feedbackSuccess,
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
