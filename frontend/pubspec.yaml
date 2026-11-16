@@ -18,6 +18,7 @@ dependencies:
   skeletonizer: ^3.0.0
   smooth_page_indicator: ^3.0.0
   showcaseview: ^5.1.0
+  google_nav_bar: ^5.0.7
 
 dev_dependencies:
   flutter_test:
