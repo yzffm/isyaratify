@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:google_nav_bar/google_nav_bar.dart';
 import '../../core/layout/breakpoints.dart';
 import '../../core/theme/app_colors.dart';
 import 'sidebar_nav.dart';
@@ -38,6 +38,37 @@ class _AppShellState extends State<AppShell> {
               child: SidebarNav(
                 location: widget.location,
                 onNavigate: () => Navigator.of(context).pop(),
+              ),
+            )
+          : null,
+        bottomNavigationBar: layoutSize == AppLayoutSize.compact
+          ? Container(
+              color: const Color(0xFF1E1E2C), 
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                child: GNav(
+                  backgroundColor: const Color(0xFF1E1E2C),
+                  color: Colors.white54,
+                  activeColor: Colors.white,
+                  tabBackgroundColor: const Color(0xFF434371),
+                  gap: 8,
+                  padding: const EdgeInsets.all(12),
+                  selectedIndex: selectedIndex, 
+                  tabs: const [
+                    GButton(icon: Icons.grid_view_rounded, text: 'Dashboard'),
+                    GButton(icon: Icons.menu_book_rounded, text: 'Kamus'),
+                    GButton(icon: Icons.videocam_rounded, text: 'Latihan'),
+                    GButton(icon: Icons.person_rounded, text: 'Profil'),
+                  ],
+                  onTabChange: (index) {
+                    switch (index) {
+                      case 0: context.go('/home'); break;
+                      case 1: context.go('/dictionary'); break;
+                      case 2: context.go('/practice'); break;
+                      case 3: context.go('/profile'); break;
+                    }
+                  },
+                ),
               ),
             )
           : null,
