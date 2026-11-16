@@ -306,6 +306,9 @@ class MainActivity : FlutterActivity() {
                 matrix,
                 true
             )
+            if (rotatedBitmap !== bitmapBuffer) {
+                bitmapBuffer.recycle()
+            }
 
             val mpImage = BitmapImageBuilder(rotatedBitmap).build()
             landmarker.detectAsync(mpImage, nowMs)
@@ -315,7 +318,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-private fun onHandLandmarkerResult(result: HandLandmarkerResult, input: MPImage) {
+    private fun onHandLandmarkerResult(result: HandLandmarkerResult, input: MPImage) {
         isProcessingFrame.set(false)
 
         val landmarksPerHand = result.landmarks()
@@ -341,7 +344,7 @@ private fun onHandLandmarkerResult(result: HandLandmarkerResult, input: MPImage)
                 mapOf(
                     "x" to wlm.x().toDouble(),
                     "y" to wlm.y().toDouble(),
-                    "z" to wlm.y().toDouble()
+                    "z" to wlm.z().toDouble()
                 )
             }
 

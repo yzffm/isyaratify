@@ -21,19 +21,28 @@ class FeatureExtractionResult {
 }
 
 /// Service untuk mengekstrak dan menormalisasi fitur landmark tangan secara konsisten
-/// antara pipeline eksperimen Python dan runtime on-device Dart.
+/// antara pipeline eksperimen Python (`ml/src/feature_extraction.py`) dan runtime
+/// on-device Dart.
 ///
-/// Kontrak fitur kanonik (128 elemen):
-/// - Indeks 0..62   : 21 landmark tangan kiri (x, y, z)
-/// - Indeks 63..125 : 21 landmark tangan kanan (x, y, z)
-/// - Indeks 126     : left_present (1.0 atau 0.0)
-/// - Indeks 127     : right_present (1.0 atau 0.0)
+/// Mendukung dua skema dimensi fitur:
+/// 1. **Skema MLP Produksi (126 elemen — `kRawCoordinateCount`):**
+///    - Tangan diurutkan dari kiri ke kanan layar berdasarkan `wrist.x` (`landmarks[0].x`).
+///    - Setiap tangan dinormalisasi terhadap titik wrist-nya masing-masing (`coords - wrist`
+///      dibagi jarak Euclidean maksimum dari wrist).
+///    - Indeks 0..62   : 21 landmark tangan ke-1 (x, y, z)
+///    - Indeks 63..125 : 21 landmark tangan ke-2 (x, y, z), atau 0.0 jika 1 tangan.
+/// 2. **Skema Kanonik + Presence (128 elemen — `kCanonicalFeatureLength`):**
+///    - Indeks 0..62   : 21 landmark tangan kiri (x, y, z)
+///    - Indeks 63..125 : 21 landmark tangan kanan (x, y, z)
+///    - Indeks 126     : left_present (1.0 atau 0.0)
+///    - Indeks 127     : right_present (1.0 atau 0.0)
 class FeatureService {
   const FeatureService({this.minHandednessScore = 0.4});
 
   final double minHandednessScore;
 
   static const int expectedFeatureLength = kCanonicalFeatureLength;
+  static const int mlpFeatureLength = kLandmarksPerHand * 3 * 2; // 126
 
   /// Mengecek apakah frame memiliki minimal satu tangan yang valid untuk inferensi.
   bool isFrameValidForInference(HandLandmarkFrame frame) {
@@ -49,12 +58,95 @@ class FeatureService {
     return true;
   }
 
-  /// Mengekstrak vektor fitur ternormalisasi (128 float) yang mempertahankan
-  /// posisi relatif antartangan apabila kedua tangan terdeteksi.
-  FeatureExtractionResult extractFeatures(
+  /// Normalisasi 21 titik satu tangan relatif terhadap wrist (`landmarks[0]`),
+  /// identik dengan `normalize_single_hand` di `ml/src/feature_extraction.py`.
+  List<double> normalizeSingleHand(TrackedHand hand) {
+    final wrist = hand.wrist;
+    var maxDist = 0.0;
+
+    for (final pt in hand.landmarks) {
+      final dx = pt.x - wrist.x;
+      final dy = pt.y - wrist.y;
+      final dz = pt.z - wrist.z;
+      final dist = math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist > maxDist) {
+        maxDist = dist;
+      }
+    }
+
+    final scale = maxDist > 1e-6 ? maxDist : 1.0;
+    final out = <double>[];
+    for (final pt in hand.landmarks) {
+      out
+        ..add((pt.x - wrist.x) / scale)
+        ..add((pt.y - wrist.y) / scale)
+        ..add((pt.z - wrist.z) / scale);
+    }
+    return out;
+  }
+
+  /// Mengekstrak vektor fitur 126-dimensi yang 100% kompatibel dengan model
+  /// MLP hasil pelatihan di `ml/src/feature_extraction.py` dan `ml/src/train.py`.
+  FeatureExtractionResult extractMlpFeatures126(
     HandLandmarkFrame frame, {
     bool normalize = true,
   }) {
+    if (!isFrameValidForInference(frame)) {
+      return FeatureExtractionResult(
+        features: List<double>.filled(mlpFeatureLength, 0.0),
+        leftPresent: false,
+        rightPresent: false,
+        handCount: 0,
+        isValid: false,
+        invalidReason: 'Tangan belum terdeteksi di kamera.',
+      );
+    }
+
+    if (!normalize) {
+      final raw = frame.toRawCoordinates();
+      return FeatureExtractionResult(
+        features: List<double>.unmodifiable(raw),
+        leftPresent: frame.hasLeft,
+        rightPresent: frame.hasRight,
+        handCount: frame.handCount,
+        isValid: true,
+      );
+    }
+
+    final detectedHands = <TrackedHand>[
+      if (frame.left != null) frame.left!,
+      if (frame.right != null) frame.right!,
+    ]..sort((a, b) => a.wrist.x.compareTo(b.wrist.x));
+
+    final values = <double>[];
+    values.addAll(normalizeSingleHand(detectedHands[0]));
+
+    if (detectedHands.length > 1) {
+      values.addAll(normalizeSingleHand(detectedHands[1]));
+    } else {
+      values.addAll(List<double>.filled(kLandmarksPerHand * 3, 0.0));
+    }
+
+    return FeatureExtractionResult(
+      features: List<double>.unmodifiable(values),
+      leftPresent: frame.hasLeft,
+      rightPresent: frame.hasRight,
+      handCount: detectedHands.length,
+      isValid: true,
+    );
+  }
+
+  /// Mengekstrak vektor fitur ternormalisasi (default 128 float, atau 126 float
+  /// bila [targetDimension] == 126).
+  FeatureExtractionResult extractFeatures(
+    HandLandmarkFrame frame, {
+    bool normalize = true,
+    int targetDimension = expectedFeatureLength,
+  }) {
+    if (targetDimension == mlpFeatureLength) {
+      return extractMlpFeatures126(frame, normalize: normalize);
+    }
+
     if (frame.isEmpty) {
       return FeatureExtractionResult(
         features: List<double>.filled(expectedFeatureLength, 0.0),

@@ -46,21 +46,28 @@ class ClassifierModelMetadata {
     required this.confidenceThreshold,
     required this.normalizeFeatures,
     required this.isPlaceholder,
+    this.smoothingWindow = 7,
+    this.singleHandLetters = const <String>[],
+    this.twoHandLetters = const <String>[],
   });
 
   final String version;
   final List<String> labels;
   final int inputDimension;
   final double confidenceThreshold;
+  final int smoothingWindow;
   final bool normalizeFeatures;
   final bool isPlaceholder;
+  final List<String> singleHandLetters;
+  final List<String> twoHandLetters;
 
   factory ClassifierModelMetadata.placeholder() {
     return ClassifierModelMetadata(
       version: '0.1.0-heuristic-baseline',
       labels: kDefaultBisindoLetters.map((item) => item.letter).toList(),
-      inputDimension: FeatureService.expectedFeatureLength,
-      confidenceThreshold: 0.60,
+      inputDimension: FeatureService.mlpFeatureLength,
+      confidenceThreshold: 0.55,
+      smoothingWindow: 7,
       normalizeFeatures: true,
       isPlaceholder: true,
     );
@@ -68,18 +75,31 @@ class ClassifierModelMetadata {
 
   factory ClassifierModelMetadata.fromJson(Map<String, dynamic> json) {
     final rawLabels = json['labels'] as List<dynamic>?;
+    final rawOneHand = json['huruf_1_tangan'] as List<dynamic>?;
+    final rawTwoHand = json['huruf_2_tangan'] as List<dynamic>?;
     return ClassifierModelMetadata(
-      version: (json['version'] as String?) ?? '0.1.0',
+      version: (json['version'] as String?) ?? '1.0.0',
       labels: rawLabels != null && rawLabels.isNotEmpty
           ? rawLabels.map((item) => item.toString().toUpperCase()).toList()
           : kDefaultBisindoLetters.map((item) => item.letter).toList(),
       inputDimension:
           (json['input_dimension'] as num?)?.toInt() ??
-          FeatureService.expectedFeatureLength,
+          FeatureService.mlpFeatureLength,
       confidenceThreshold:
-          (json['confidence_threshold'] as num?)?.toDouble() ?? 0.60,
+          (json['confidence_threshold'] as num?)?.toDouble() ?? 0.55,
+      smoothingWindow: (json['smoothing_window'] as num?)?.toInt() ?? 7,
       normalizeFeatures: (json['normalize_features'] as bool?) ?? true,
       isPlaceholder: (json['is_placeholder'] as bool?) ?? false,
+      singleHandLetters: rawOneHand != null
+          ? rawOneHand
+                .map((item) => item.toString().toUpperCase())
+                .toList(growable: false)
+          : const <String>[],
+      twoHandLetters: rawTwoHand != null
+          ? rawTwoHand
+                .map((item) => item.toString().toUpperCase())
+                .toList(growable: false)
+          : const <String>[],
     );
   }
 }
@@ -164,11 +184,32 @@ class ClassifierService {
     final extraction = _featureService.extractFeatures(
       frame,
       normalize: _metadata.normalizeFeatures,
+      targetDimension: _metadata.inputDimension,
     );
 
     if (!extraction.isValid) {
       stopwatch.stop();
       return null;
+    }
+
+    if (preferredTargetLetter != null &&
+        RegExp(r'^[A-Z]$').hasMatch(preferredTargetLetter.toUpperCase())) {
+      final upper = preferredTargetLetter.toUpperCase();
+      final requiresTwoHands =
+          _metadata.twoHandLetters.contains(upper) ||
+          kDefaultBisindoLetters.any(
+            (item) => item.letter == upper && item.requiresTwoHands,
+          );
+      if (requiresTwoHands && frame.handCount < 2) {
+        stopwatch.stop();
+        return GesturePrediction(
+          letter: upper,
+          score: 0.35,
+          isStable: false,
+          timestamp: frame.timestamp,
+          inferenceMs: stopwatch.elapsedMilliseconds,
+        );
+      }
     }
 
     if (_layers.isNotEmpty) {
@@ -178,6 +219,7 @@ class ClassifierService {
         probabilities: probabilities,
         timestamp: frame.timestamp,
         inferenceMs: stopwatch.elapsedMilliseconds,
+        handCount: frame.handCount,
       );
     }
 
@@ -190,7 +232,7 @@ class ClassifierService {
     return fallback;
   }
 
-  /// Menjalankan forward-pass MLP murni di Dart pada vektor fitur berukuran 128.
+  /// Menjalankan forward-pass MLP murni di Dart pada vektor fitur (126 atau 128 elemen).
   List<double> forwardPass(List<double> rawFeatures) {
     var activations = List<double>.from(rawFeatures);
 
@@ -281,21 +323,49 @@ class ClassifierService {
     required List<double> probabilities,
     required DateTime timestamp,
     required int inferenceMs,
+    int? handCount,
   }) {
     if (probabilities.isEmpty) return null;
 
     final normalizedProbs = _ensureNormalizedDistribution(probabilities);
-    var bestIdx = 0;
-    var bestScore = normalizedProbs.first;
+    final labels = _metadata.labels;
 
-    for (var i = 1; i < normalizedProbs.length; i++) {
+    final Set<String>? allowedSet;
+    if (handCount != null &&
+        _metadata.singleHandLetters.isNotEmpty &&
+        _metadata.twoHandLetters.isNotEmpty) {
+      allowedSet = handCount >= 2
+          ? _metadata.twoHandLetters.toSet()
+          : _metadata.singleHandLetters.toSet();
+    } else {
+      allowedSet = null;
+    }
+
+    var bestIdx = -1;
+    var bestScore = -1.0;
+
+    for (var i = 0; i < normalizedProbs.length; i++) {
+      final label = i < labels.length ? labels[i] : 'A';
+      if (allowedSet != null && !allowedSet.contains(label)) {
+        continue;
+      }
       if (normalizedProbs[i] > bestScore) {
         bestScore = normalizedProbs[i];
         bestIdx = i;
       }
     }
 
-    final labels = _metadata.labels;
+    if (bestIdx < 0) {
+      bestIdx = 0;
+      bestScore = normalizedProbs.first;
+      for (var i = 1; i < normalizedProbs.length; i++) {
+        if (normalizedProbs[i] > bestScore) {
+          bestScore = normalizedProbs[i];
+          bestIdx = i;
+        }
+      }
+    }
+
     final bestLabel = bestIdx < labels.length ? labels[bestIdx] : 'A';
 
     return GesturePrediction(

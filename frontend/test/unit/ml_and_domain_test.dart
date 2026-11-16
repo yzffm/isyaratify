@@ -1,12 +1,40 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:isyaratify/core/errors/app_exceptions.dart';
 import 'package:isyaratify/models/attempt_model.dart';
 import 'package:isyaratify/models/hand_landmark_model.dart';
 import 'package:isyaratify/models/prediction_model.dart';
 import 'package:isyaratify/models/progress_model.dart';
+import 'package:isyaratify/platform/http_client_platform.dart';
 import 'package:isyaratify/services/classifier_service.dart';
 import 'package:isyaratify/services/feature_service.dart';
 import 'package:isyaratify/services/supabase_service.dart';
 import 'package:isyaratify/services/sync_service.dart';
+
+class _FakeDioAdapter implements HttpClientAdapter {
+  _FakeDioAdapter(this.handler);
+
+  final Future<ResponseBody> Function(RequestOptions options) handler;
+  bool closed = false;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) {
+    return handler(options);
+  }
+
+  @override
+  void close({bool force = false}) {
+    closed = true;
+  }
+}
 
 List<HandLandmark> _buildLandmarks({double offsetX = 0.0}) {
   return List<HandLandmark>.generate(
@@ -61,6 +89,32 @@ void main() {
         expect(res.features[63], greaterThan(0.0));
       },
     );
+
+    test(
+      'extractMlpFeatures126 menormalisasi wrist per tangan dan menolkan slot tangan ke-2 saat 1 tangan',
+      () {
+        final singleHand = TrackedHand(
+          side: HandSide.right,
+          landmarks: _buildLandmarks(offsetX: 0.4),
+          handednessScore: 0.91,
+        );
+        final frame = HandLandmarkFrame.fromHands(
+          timestamp: sampleTime,
+          hands: <TrackedHand>[singleHand],
+        );
+
+        final res = featureService.extractMlpFeatures126(frame);
+        expect(res.isValid, isTrue);
+        expect(res.handCount, 1);
+        expect(res.features.length, 126);
+        // Wrist tangan ke-1 berada pada pusat (0, 0, 0)
+        expect(res.features[0], closeTo(0.0, 1e-9));
+        expect(res.features[1], closeTo(0.0, 1e-9));
+        expect(res.features[2], closeTo(0.0, 1e-9));
+        // Slot tangan ke-2 (indeks 63..125) bernilai 0.0
+        expect(res.features.sublist(63).every((v) => v == 0.0), isTrue);
+      },
+    );
   });
 
   group('ClassifierService & TemporalSmoother', () {
@@ -103,6 +157,40 @@ void main() {
     );
 
     test(
+      'parity Python-Dart pada artefak assets/ml/classifier.json menghasilkan label dan skor identik',
+      () {
+        final file = File('assets/ml/classifier.json');
+        expect(file.existsSync(), isTrue);
+
+        final rawJson =
+            jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        final classifier = ClassifierService()..loadFromJsonMap(rawJson);
+
+        expect(classifier.hasTrainedWeights, isTrue);
+        expect(classifier.metadata.inputDimension, 126);
+        expect(classifier.metadata.labels.length, 26);
+
+        final paritySample = rawJson['parity_sample'] as Map<String, dynamic>;
+        final sampleInput = (paritySample['input'] as List<dynamic>)
+            .map((e) => (e as num).toDouble())
+            .toList(growable: false);
+        final expectedLabel = paritySample['expected_top_label'] as String;
+        final expectedScore = (paritySample['expected_top_score'] as num)
+            .toDouble();
+
+        final probs = classifier.forwardPass(sampleInput);
+        expect(probs.length, 26);
+
+        var bestIdx = 0;
+        for (var i = 1; i < probs.length; i++) {
+          if (probs[i] > probs[bestIdx]) bestIdx = i;
+        }
+        expect(classifier.metadata.labels[bestIdx], expectedLabel);
+        expect(probs[bestIdx], closeTo(expectedScore, 1e-5));
+      },
+    );
+
+    test(
       'TemporalSmoother menetapkan isStable setelah majority vote dan mencegah XP berulang',
       () {
         final smoother = TemporalSmoother(
@@ -131,6 +219,67 @@ void main() {
         expect(smoother.consumeAttemptEligibility(third), isFalse);
         smoother.resetDebounce();
         expect(smoother.consumeAttemptEligibility(third), isTrue);
+      },
+    );
+  });
+
+  group('DioPlatformHttpClient', () {
+    test(
+      'menyisipkan header JSON standar dan meneruskan respons HTTP dengan benar',
+      () async {
+        RequestOptions? capturedOptions;
+        final dio = Dio();
+        final adapter = _FakeDioAdapter((options) async {
+          capturedOptions = options;
+          return ResponseBody.fromString(
+            '{"ok":true}',
+            200,
+            headers: <String, List<String>>{
+              Headers.contentTypeHeader: <String>[Headers.jsonContentType],
+            },
+          );
+        });
+        dio.httpClientAdapter = adapter;
+
+        final client = DioPlatformHttpClient(dio: dio);
+        final res = await client.request(
+          method: 'POST',
+          uri: Uri.parse('https://example.supabase.co/rest/v1/rpc/test'),
+          headers: const <String, String>{'apikey': 'sb_publishable_demo'},
+          body: '{"hello":"world"}',
+        );
+
+        expect(res.isSuccess, isTrue);
+        expect(res.statusCode, 200);
+        expect(res.body, '{"ok":true}');
+        expect(capturedOptions?.headers['apikey'], 'sb_publishable_demo');
+        expect(capturedOptions?.headers['Accept'], 'application/json');
+
+        client.close();
+        expect(adapter.closed, isTrue);
+      },
+    );
+
+    test(
+      'memetakan DioException timeout menjadi ApiException yang ramah pengguna',
+      () async {
+        final dio = Dio();
+        dio.httpClientAdapter = _FakeDioAdapter((options) async {
+          throw DioException.connectionTimeout(
+            timeout: const Duration(seconds: 12),
+            requestOptions: options,
+          );
+        });
+
+        final client = DioPlatformHttpClient(dio: dio);
+        await expectLater(
+          client.request(
+            method: 'GET',
+            uri: Uri.parse('https://example.supabase.co/rest/v1/letters'),
+            headers: const <String, String>{},
+          ),
+          throwsA(isA<ApiException>()),
+        );
       },
     );
   });
