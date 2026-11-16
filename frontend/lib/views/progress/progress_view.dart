@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../controllers/progress_controller.dart';
@@ -62,14 +63,10 @@ class _ProgressViewState extends State<ProgressView> {
     return 'Pembelajar BISINDO';
   }
 
+  static final DateFormat _timestampFormatter = DateFormat('dd/MM/yyyy HH:mm');
+
   static String _formatTimestamp(DateTime dt) {
-    final local = dt.toLocal();
-    final y = local.year.toString().padLeft(4, '0');
-    final m = local.month.toString().padLeft(2, '0');
-    final d = local.day.toString().padLeft(2, '0');
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '$d/$m/$y $hh:$mm';
+    return _timestampFormatter.format(dt.toLocal());
   }
 
   @override
