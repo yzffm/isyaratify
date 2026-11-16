@@ -7,6 +7,7 @@ import '../../models/attempt_model.dart';
 import '../../models/letter_model.dart';
 import '../../models/progress_model.dart';
 import '../../models/quest_model.dart';
+import '../../widgets/brand/brand_logo.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/progress_bar.dart';
 import '../../widgets/common/section_header.dart';
@@ -74,22 +75,34 @@ class DashboardWelcomeBanner extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'Dashboard',
-                      style: AppTextStyles.labelSm.copyWith(
-                        color: Colors.white,
-                        letterSpacing: 0.6,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const BrandLogoBadge(
+                        size: 32,
+                        borderRadius: 10,
+                        padding: 4,
+                        onDark: true,
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Dashboard',
+                          style: AppTextStyles.labelSm.copyWith(
+                            color: Colors.white,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   Text(

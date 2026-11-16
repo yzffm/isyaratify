@@ -10,6 +10,7 @@ import '../../core/constants/app_strings.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../widgets/brand/brand_logo.dart';
 import '../../widgets/brand/gradient_panel.dart';
 
 /// Layar pembuka bermerek Isyaratify yang mengecek status autentikasi awal.
@@ -53,21 +54,11 @@ class _SplashViewState extends State<SplashView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                      width: 84,
-                      height: 84,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.25),
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.sign_language_rounded,
-                        size: 44,
-                        color: ext.accentYellow,
-                      ),
+                const BrandLogoBadge(
+                      size: 88,
+                      borderRadius: 24,
+                      padding: 12,
+                      onDark: true,
                     )
                     .animate()
                     .fadeIn(duration: 350.ms)

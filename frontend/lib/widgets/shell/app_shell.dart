@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/layout/breakpoints.dart';
+import '../../core/routing/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../brand/brand_logo.dart';
 import 'sidebar_nav.dart';
 import 'top_bar.dart';
 
@@ -59,18 +61,10 @@ class _AppShellState extends State<AppShell> {
                   labelType: NavigationRailLabelType.none,
                   leading: Padding(
                     padding: const EdgeInsets.only(top: 12, bottom: 16),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: ext.headerIndigo,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.sign_language_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => context.go(AppRoutes.home),
+                      child: const BrandLogoBadge(size: 40, padding: 5),
                     ),
                   ),
                   onDestinationSelected: (idx) {

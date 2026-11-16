@@ -3,8 +3,8 @@
     "short_name": "Isyaratify",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#F8FAFC",
-    "theme_color": "#2E6BE6",
+    "background_color": "#FBF8FF",
+    "theme_color": "#453FD6",
     "description": "Pembelajaran alfabet statis BISINDO berbasis kamera dan on-device ML.",
     "prefer_related_applications": false,
     "icons": [
