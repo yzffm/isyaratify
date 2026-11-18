@@ -36,9 +36,9 @@ class PracticeController extends ChangeNotifier {
   final SupabaseService? _supabaseService;
   final SyncService? _syncService;
   final TemporalSmoother _smoother = TemporalSmoother(
-    windowSize: 5,
-    minMajorityCount: 3,
-    confidenceThreshold: 0.60,
+    windowSize: 7,
+    minMajorityCount: 4,
+    confidenceThreshold: 0.55,
   );
 
   PracticeStatus _status = PracticeStatus.idle;

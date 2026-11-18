@@ -7,6 +7,7 @@ import 'package:isyaratify/core/theme/app_colors.dart';
 import 'package:isyaratify/core/theme/app_theme.dart';
 import 'package:isyaratify/models/hand_landmark_model.dart';
 import 'package:isyaratify/services/hand_tracking_service.dart';
+import 'package:isyaratify/widgets/brand/brand_logo.dart';
 import 'package:isyaratify/widgets/shell/app_shell.dart';
 
 class _NoopTrackingService implements HandTrackingService {
@@ -58,6 +59,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.byType(BrandLogo), findsOneWidget);
+    expect(find.byType(BrandLogoBadge), findsOneWidget);
     expect(find.text('Kamus Alfabet'), findsOneWidget);
     expect(find.text('Live Practice'), findsOneWidget);
     expect(find.text('Quest & Tantangan'), findsOneWidget);

@@ -4,6 +4,7 @@ import '../../core/constants/app_strings.dart';
 import '../../core/layout/breakpoints.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/team_member_model.dart';
+import '../../widgets/brand/brand_logo.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/status_pill.dart';
 
@@ -162,6 +163,12 @@ class _VisionHeroCard extends StatelessWidget {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              const BrandLogoBadge(
+                size: 38,
+                borderRadius: 12,
+                padding: 5,
+                onDark: true,
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,

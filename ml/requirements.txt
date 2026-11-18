@@ -1,8 +1,26 @@
-# Lingkungan eksperimen & ekstraksi landmark ML Isyaratify (Google Colab / Python 3.10+)
+# Lingkungan Machine Learning Isyaratify (Python 3.10+)
+# Digunakan untuk pipeline ekstraksi landmark, training model MLP, evaluasi, dan live demo.
+
+# Core Deep Learning & MediaPipe
+tensorflow>=2.15.0
 mediapipe>=0.10.14
+
+# Computer Vision & Image Processing
 opencv-python>=4.9.0
+
+# Scientific Computing & Data Analysis
 numpy>=1.26.0
 pandas>=2.2.0
 scikit-learn>=1.4.0
+
+# Visualisasi Grafik & Confusion Matrix
 matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Utilitas Dataset & Ekstraksi
 kagglehub>=0.2.5
+tqdm>=4.66.0
+joblib>=1.3.0
+
+# Live Testing Interface (Notebook 03)
+gradio>=4.0.0

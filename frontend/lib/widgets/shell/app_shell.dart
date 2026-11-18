@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
+import 'package:google_nav_bar/google_nav_bar.dart';
 import '../../core/layout/breakpoints.dart';
+import '../../core/routing/app_routes.dart';
 import '../../core/theme/app_colors.dart';
+import '../brand/brand_logo.dart';
 import 'sidebar_nav.dart';
 import 'top_bar.dart';
 
@@ -41,6 +43,37 @@ class _AppShellState extends State<AppShell> {
               ),
             )
           : null,
+        bottomNavigationBar: layoutSize == AppLayoutSize.compact
+          ? Container(
+              color: const Color(0xFF1E1E2C), 
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                child: GNav(
+                  backgroundColor: const Color(0xFF1E1E2C),
+                  color: Colors.white54,
+                  activeColor: Colors.white,
+                  tabBackgroundColor: const Color(0xFF434371),
+                  gap: 8,
+                  padding: const EdgeInsets.all(12),
+                  selectedIndex: selectedIndex, 
+                  tabs: const [
+                    GButton(icon: Icons.grid_view_rounded, text: 'Dashboard'),
+                    GButton(icon: Icons.menu_book_rounded, text: 'Kamus'),
+                    GButton(icon: Icons.videocam_rounded, text: 'Latihan'),
+                    GButton(icon: Icons.person_rounded, text: 'Profil'),
+                  ],
+                  onTabChange: (index) {
+                    switch (index) {
+                      case 0: context.go('/home'); break;
+                      case 1: context.go('/dictionary'); break;
+                      case 2: context.go('/practice'); break;
+                      case 3: context.go('/profile'); break;
+                    }
+                  },
+                ),
+              ),
+            )
+          : null,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -59,18 +92,10 @@ class _AppShellState extends State<AppShell> {
                   labelType: NavigationRailLabelType.none,
                   leading: Padding(
                     padding: const EdgeInsets.only(top: 12, bottom: 16),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: ext.headerIndigo,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.sign_language_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => context.go(AppRoutes.home),
+                      child: const BrandLogoBadge(size: 40, padding: 5),
                     ),
                   ),
                   onDestinationSelected: (idx) {
