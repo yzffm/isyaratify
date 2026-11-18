@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-
 import '../../core/theme/app_colors.dart';
 import '../../models/progress_model.dart';
 import '../../models/quest_model.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/status_pill.dart';
+import 'package:isyaratify/core/utils/confetti_helper.dart';
 
 /// Filter status tampilan misi pada halaman [QuestView].
 enum QuestFilter { all, active, completed }
@@ -160,7 +160,7 @@ class QuestHeroBanner extends StatelessWidget {
             runSpacing: 10,
             children: [
               FilledButton.icon(
-                onPressed: onStartPractice,
+               onPressed : onStartPractice,
                 style: FilledButton.styleFrom(
                   backgroundColor: ext.accentYellow,
                   foregroundColor: ext.onAccentYellowContainer,
@@ -484,7 +484,10 @@ class QuestItemCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerRight,
               child: FilledButton.tonalIcon(
-                onPressed: onPracticeTap,
+               onPressed: () {
+                ConfettiHelper.celebrate(context);
+                onPracticeTap();
+               },
                 icon: const Icon(Icons.play_arrow_rounded, size: 18),
                 label: const Text('Latih Sekarang'),
               ),
