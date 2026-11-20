@@ -318,8 +318,26 @@ select
 from public.leaderboard_entries le;
 
 -- -----------------------------------------------------------------------------
--- 12. Trigger Otomatis Pembuatan Profil & Sinkronisasi Leaderboard
+-- 12. Trigger Otomatis Auto-Confirm Email, Pembuatan Profil & Leaderboard
 -- -----------------------------------------------------------------------------
+create or replace function private.auto_confirm_user_email()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.email_confirmed_at is null then
+    new.email_confirmed_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+create or replace trigger on_auth_user_auto_confirm
+  before insert or update on auth.users
+  for each row execute function private.auto_confirm_user_email();
+
 create or replace function private.handle_new_user()
 returns trigger
 language plpgsql

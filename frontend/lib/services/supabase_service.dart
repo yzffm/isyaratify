@@ -6,6 +6,7 @@ import '../models/attempt_model.dart';
 import '../models/letter_model.dart';
 import '../models/progress_model.dart';
 import '../models/quest_model.dart';
+import '../models/sign_media_model.dart';
 import '../platform/http_client_platform.dart';
 
 class AuthSession {
@@ -183,12 +184,22 @@ class SupabaseService {
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    if (data['access_token'] is String) {
+    final sessionObj = data['session'] as Map<String, dynamic>?;
+    final hasAccessToken =
+        (data['access_token'] is String &&
+            (data['access_token'] as String).isNotEmpty) ||
+        (sessionObj != null &&
+            sessionObj['access_token'] is String &&
+            (sessionObj['access_token'] as String).isNotEmpty);
+
+    if (hasAccessToken) {
       final session = _parseAuthSession(data, fallbackEmail: normalizedEmail);
       _session = session;
       return session;
     }
 
+    // Langsung autentikasi tanpa perlu konfirmasi email (didukung trigger
+    // auto-confirm pada auth.users di Supabase).
     return signInWithPassword(email: normalizedEmail, password: password);
   }
 
@@ -230,8 +241,18 @@ class SupabaseService {
     _session = null;
   }
 
+  /// Asal data kamus terakhir (remote Supabase REST vs fallback lokal), agar
+  /// UI dapat menampilkan sumber data secara transparan (tidak senyap).
+  DataSource lastLettersSource = DataSource.unknown;
+
+  /// Alasan singkat terakhir fallback lokal dipakai (null bila remote sukses).
+  String? lastLettersFallbackReason;
+
   Future<List<LetterModel>> fetchLetters() async {
     if (!isRemoteConfigured) {
+      lastLettersSource = DataSource.localFallback;
+      lastLettersFallbackReason =
+          'Supabase belum dikonfigurasi (SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY).';
       return kDefaultBisindoLetters;
     }
     try {
@@ -245,17 +266,29 @@ class SupabaseService {
         headers: _buildHeaders(includeAuth: _canCallRemoteWithAuth),
       );
       if (!response.isSuccess) {
+        lastLettersSource = DataSource.localFallback;
+        lastLettersFallbackReason =
+            'Supabase /rest/v1/letters mengembalikan status ${response.statusCode}.';
         return kDefaultBisindoLetters;
       }
       final rows = jsonDecode(response.body) as List<dynamic>;
       if (rows.isEmpty) {
+        lastLettersSource = DataSource.localFallback;
+        lastLettersFallbackReason =
+            'Supabase mengembalikan 0 baris (periksa login/RLS tabel letters).';
         return kDefaultBisindoLetters;
       }
+      lastLettersSource = DataSource.remoteApi;
+      lastLettersFallbackReason = null;
       return rows
           .whereType<Map<String, dynamic>>()
           .map(LetterModel.fromJson)
           .toList(growable: false);
-    } catch (_) {
+    } catch (e) {
+      lastLettersSource = DataSource.localFallback;
+      lastLettersFallbackReason = e is ApiException
+          ? e.message
+          : 'Gagal memuat letters dari Supabase.';
       return kDefaultBisindoLetters;
     }
   }
@@ -736,19 +769,29 @@ class SupabaseService {
     Map<String, dynamic> data, {
     required String fallbackEmail,
   }) {
-    final userObj = data['user'] as Map<String, dynamic>? ?? data;
+    final sessionObj = data['session'] as Map<String, dynamic>?;
+    final userObj =
+        (data['user'] as Map<String, dynamic>?) ??
+        (sessionObj?['user'] as Map<String, dynamic>?) ??
+        data;
     final userMeta =
         userObj['user_metadata'] as Map<String, dynamic>? ?? const {};
     final email = (userObj['email'] as String?) ?? fallbackEmail;
     final displayName =
         (userMeta['display_name'] as String?) ?? email.split('@').first;
+    final accessToken =
+        (data['access_token'] as String?) ??
+        (sessionObj?['access_token'] as String?);
+    final refreshToken =
+        (data['refresh_token'] as String?) ??
+        (sessionObj?['refresh_token'] as String?);
 
     return AuthSession(
       userId: (userObj['id'] as String?) ?? 'unknown-user',
       email: email,
       displayName: displayName,
-      accessToken: data['access_token'] as String?,
-      refreshToken: data['refresh_token'] as String?,
+      accessToken: accessToken,
+      refreshToken: refreshToken,
     );
   }
 
@@ -763,7 +806,15 @@ class SupabaseService {
             decoded['message'] ??
             decoded['error'];
         if (msg is String && msg.trim().isNotEmpty) {
-          return msg.trim();
+          final clean = msg.trim();
+          final lower = clean.toLowerCase();
+          if (lower.contains('user already registered')) {
+            return 'Email ini sudah terdaftar. Silakan masuk melalui halaman Login.';
+          }
+          if (lower.contains('invalid login credentials')) {
+            return 'Email atau kata sandi salah. Periksa kembali data Anda.';
+          }
+          return clean;
         }
       }
     } catch (_) {}

@@ -86,14 +86,21 @@ class _DictionaryViewState extends State<DictionaryView> {
         return SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-            child: DictionaryInspectorPanel(
-              letter: letter,
-              mastery: dictionary.masteryFor(letter.letter),
-              isInSheet: true,
-              onStartPractice: () {
-                Navigator.of(sheetContext).pop();
-                context.push(AppRoutes.practiceWithTarget(letter.letter));
-              },
+            // Consumer agar status video (memuat/gagal/coba lagi) reaktif di sheet.
+            child: Consumer<DictionaryController>(
+              builder: (_, live, _) => DictionaryInspectorPanel(
+                letter: letter,
+                mastery: live.masteryFor(letter.letter),
+                isInSheet: true,
+                signMedia: live.signMediaFor(letter.letter),
+                signStatus: live.signStatus,
+                signError: live.signError,
+                onRetrySign: live.retrySignMedia,
+                onStartPractice: () {
+                  Navigator.of(sheetContext).pop();
+                  context.push(AppRoutes.practiceWithTarget(letter.letter));
+                },
+              ),
             ),
           ),
         );
@@ -240,6 +247,14 @@ class _DictionaryViewState extends State<DictionaryView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    DictionarySourceBanner(
+                      lettersSource: dictionary.lettersSource,
+                      lettersFallbackReason: dictionary.lettersFallbackReason,
+                      signStatus: dictionary.signStatus,
+                      signCount: dictionary.signMedia.length,
+                      onRetrySign: dictionary.retrySignMedia,
+                    ),
+                    const SizedBox(height: 12),
                     DictionaryHeaderCard(
                       totalLetters: allLetters.length,
                       masteredCount: masteredCount,
@@ -264,6 +279,12 @@ class _DictionaryViewState extends State<DictionaryView> {
                                     mastery: dictionary.masteryFor(
                                       selectedLetter.letter,
                                     ),
+                                    signMedia: dictionary.signMediaFor(
+                                      selectedLetter.letter,
+                                    ),
+                                    signStatus: dictionary.signStatus,
+                                    signError: dictionary.signError,
+                                    onRetrySign: dictionary.retrySignMedia,
                                     onStartPractice: () => context.push(
                                       AppRoutes.practiceWithTarget(
                                         selectedLetter!.letter,

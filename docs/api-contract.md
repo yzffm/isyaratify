@@ -2,7 +2,7 @@
 
 Dokumen ini mendefinisikan kontrak integrasi API antara aplikasi Flutter (`frontend/lib/services/supabase_service.dart`) dan layanan backend Supabase PostgreSQL.
 
-> **Prinsip Privasi & Real-Time (`AGENTS.md` §5 & §7):**
+> **Prinsip Privasi & Real-Time:**
 > - Kamera, ekstraksi landmark MediaPipe, dan klasifikasi alfabet berjalan **100% lokal (on-device)**.
 > - Aplikasi **tidak pernah** mengirimkan frame gambar atau video kamera ke API.
 > - Seluruh endpoint di bawah diakses menggunakan `SUPABASE_PUBLISHABLE_KEY` bersama token sesi pengguna (`authenticated`) karena aplikasi menerapkan kebijakan **Login Wajib**.
@@ -123,3 +123,48 @@ Dipanggil setelah temporal smoothing menyatakan prediksi huruf pada sesi latihan
   ]
 }
 ```
+
+
+---
+
+## 4. API Publik Pihak Ketiga — Wikimedia Commons (MediaWiki Action API)
+
+Selain Supabase REST/PostgREST untuk akun dan progres pengguna, halaman Kamus BISINDO mengonsumsi **API publik gratis pihak ketiga** dari **Wikimedia Commons** menggunakan `package:dio` (`frontend/lib/services/commons_sign_service.dart`) untuk memuat video peragaan gestur alfabet BISINDO A–Z secara langsung.
+
+### 4.1 Endpoint Batch Video Alfabet A–Z
+- **Method & URL:** `GET https://commons.wikimedia.org/w/api.php`
+- **Autentikasi:** Tidak membutuhkan API key (publik & gratis).
+- **Query Parameters:**
+  - `action=query`
+  - `format=json`
+  - `formatversion=2`
+  - `origin=*` (mengaktifkan header CORS `access-control-allow-origin: *` agar kompatibel dengan Flutter Web)
+  - `titles=File:A dalam BISINDO.webm|File:B dalam BISINDO.webm|...|File:Z dalam BISINDO.webm` (26 huruf dalam 1 batch request)
+  - `prop=imageinfo`
+  - `iiprop=url|mime|size|extmetadata`
+  - `iiextmetadatafilter=LicenseShortName|Artist`
+- **Contoh Respons JSON (1 item `pages`):**
+```json
+{
+  "pageid": 156723485,
+  "title": "File:A dalam BISINDO.webm",
+  "imageinfo": [
+    {
+      "size": 626896,
+      "url": "https://upload.wikimedia.org/wikipedia/commons/0/0e/A_dalam_BISINDO.webm",
+      "descriptionurl": "https://commons.wikimedia.org/wiki/File:A_dalam_BISINDO.webm",
+      "mime": "video/webm",
+      "extmetadata": {
+        "LicenseShortName": { "value": "CC BY-SA 4.0" },
+        "Artist": { "value": "angphotorion" }
+      }
+    }
+  ]
+}
+```
+- **Lisensi & Atribusi Wajib:** Seluruh 26 berkas video (`video/webm`, total ±12,3 MB) berlisensi **CC BY-SA 4.0** oleh kontributor `angphotorion` (proyek Wikibility, varian BISINDO Malang). UI kamus (`SignMediaPanel`) menampilkan atribusi lisensi serta *disclaimer* variasi regional secara eksplisit.
+
+### 4.2 Transparansi Request `Dio` (Tanpa Fallback Senyap)
+- Seluruh panggilan `Dio` (baik ke Supabase melalui `DioPlatformHttpClient` maupun ke Wikimedia Commons melalui `CommonsSignService`) melewati `ApiActivityLog.interceptor()` (`frontend/lib/core/network/api_activity_log.dart`) yang mencatat metode, host, path, status HTTP, dan durasi (tanpa menyimpan header sensitif seperti `apikey` atau token) ke debug console (`[API] GET commons.wikimedia.org/w/api.php -> 200 (...)`) dan riwayat in-memory.
+- Halaman Kamus menampilkan `DictionarySourceBanner` yang secara jujur menunjukkan sumber data aktual: apakah teks berasal dari **Supabase REST API** atau **data lokal (offline)** beserta alasannya, serta status pemuatan video dari **Wikimedia Commons API** lengkap dengan tombol **Coba Lagi** apabila jaringan bermasalah.
+- `DioPlatformHttpClient` juga memastikan header `Content-Type` hanya dikirim pada request yang memiliki body agar request `GET` di Flutter Web tidak memicu CORS preflight yang tidak perlu.

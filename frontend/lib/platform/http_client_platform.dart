@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../core/errors/app_exceptions.dart';
+import '../core/network/api_activity_log.dart';
 
 export 'http_client_stub.dart'
     if (dart.library.js_interop) 'web/http_client_web.dart'
@@ -50,11 +51,19 @@ class DioPlatformHttpClient implements PlatformHttpClient {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           options.headers.putIfAbsent('Accept', () => 'application/json');
-          options.headers.putIfAbsent('Content-Type', () => 'application/json');
+          // Content-Type hanya relevan untuk request yang membawa body. Pada
+          // GET tanpa body, header ini di Web memicu CORS preflight tak perlu.
+          if (options.data != null) {
+            options.headers.putIfAbsent(
+              'Content-Type',
+              () => 'application/json',
+            );
+          }
           handler.next(options);
         },
       ),
     );
+    _dio.interceptors.add(ApiActivityLog.interceptor());
   }
 
   final Dio _dio;
@@ -66,13 +75,20 @@ class DioPlatformHttpClient implements PlatformHttpClient {
     required Map<String, String> headers,
     String? body,
   }) async {
+    final hasBody = body != null && body.isNotEmpty;
+    final effectiveHeaders = Map<String, dynamic>.from(headers);
+    if (!hasBody) {
+      effectiveHeaders.removeWhere(
+        (key, _) => key.toLowerCase() == 'content-type',
+      );
+    }
     try {
       final response = await _dio.requestUri<dynamic>(
         uri,
-        data: (body != null && body.isNotEmpty) ? body : null,
+        data: hasBody ? body : null,
         options: Options(
           method: method.toUpperCase(),
-          headers: Map<String, dynamic>.from(headers),
+          headers: effectiveHeaders,
           responseType: ResponseType.plain,
           validateStatus: (_) => true,
         ),

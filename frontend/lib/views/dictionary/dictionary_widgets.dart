@@ -4,10 +4,12 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../models/letter_model.dart';
 import '../../models/progress_model.dart';
+import '../../models/sign_media_model.dart';
 import '../../widgets/common/app_card.dart';
 import '../../widgets/common/primary_button.dart';
 import '../../widgets/common/progress_bar.dart';
 import '../../widgets/common/status_pill.dart';
+import 'sign_media_panel.dart';
 
 /// Filter status kamus di atas filter bawaan `DictionaryController`.
 enum DictionaryStatusFilter { all, oneHand, twoHands, mastered }
@@ -404,12 +406,20 @@ class DictionaryInspectorPanel extends StatelessWidget {
     required this.letter,
     required this.mastery,
     required this.onStartPractice,
+    required this.signMedia,
+    required this.signStatus,
+    required this.signError,
+    required this.onRetrySign,
     this.isInSheet = false,
   });
 
   final LetterModel letter;
   final LetterMasteryModel? mastery;
   final VoidCallback onStartPractice;
+  final SignMediaModel? signMedia;
+  final SignMediaStatus signStatus;
+  final String? signError;
+  final VoidCallback onRetrySign;
   final bool isInSheet;
 
   String _difficultyLabel(LetterDifficulty difficulty) {
@@ -490,45 +500,20 @@ class DictionaryInspectorPanel extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        Container(
-          height: 152,
-          decoration: BoxDecoration(
-            color: ext.cameraBackdrop,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (letter.imageUrl != null && letter.imageUrl!.isNotEmpty)
-                Image.network(
+        SignMediaPanel(
+          letter: letter.letter,
+          media: signMedia,
+          status: signStatus,
+          error: signError,
+          onRetry: onRetrySign,
+          fallback: (letter.imageUrl != null && letter.imageUrl!.isNotEmpty)
+              ? Image.network(
                   letter.imageUrl!,
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) =>
                       _LetterIllustrationPlaceholder(letter: letter),
                 )
-              else
-                _LetterIllustrationPlaceholder(letter: letter),
-              Positioned(
-                top: 10,
-                left: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'Referensi Visual 2D',
-                    style: AppTextStyles.labelSm.copyWith(color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
-          ),
+              : _LetterIllustrationPlaceholder(letter: letter),
         ),
         const SizedBox(height: 14),
         Text(
@@ -722,6 +707,137 @@ class _MetricColumn extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Banner transparansi sumber data kamus: menunjukkan API mana yang dipakai
+/// (Supabase REST untuk teks, Wikimedia Commons untuk video) dan bila ada
+/// fallback lokal, beserta alasannya.
+class DictionarySourceBanner extends StatelessWidget {
+  const DictionarySourceBanner({
+    super.key,
+    required this.lettersSource,
+    required this.lettersFallbackReason,
+    required this.signStatus,
+    required this.signCount,
+    required this.onRetrySign,
+  });
+
+  final DataSource lettersSource;
+  final String? lettersFallbackReason;
+  final SignMediaStatus signStatus;
+  final int signCount;
+  final VoidCallback onRetrySign;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    final textLabel = switch (lettersSource) {
+      DataSource.remoteApi => 'Teks kamus: Supabase REST API',
+      DataSource.localFallback => 'Teks kamus: data lokal (offline)',
+      DataSource.unknown => 'Teks kamus: memuat…',
+    };
+    final videoLabel = switch (signStatus) {
+      SignMediaStatus.ready =>
+        'Video isyarat: Wikimedia Commons API ($signCount/26)',
+      SignMediaStatus.partial =>
+        'Video isyarat: Wikimedia Commons API ($signCount/26, sebagian)',
+      SignMediaStatus.failed => 'Video isyarat: gagal dimuat dari Commons API',
+      SignMediaStatus.loading ||
+      SignMediaStatus.idle => 'Video isyarat: memuat dari Commons API…',
+    };
+
+    final lines = <Widget>[
+      _SourceLine(
+        icon: lettersSource == DataSource.remoteApi
+            ? Icons.cloud_done_outlined
+            : Icons.cloud_off_outlined,
+        text: textLabel,
+        detail: lettersSource == DataSource.localFallback
+            ? lettersFallbackReason
+            : null,
+      ),
+      _SourceLine(
+        icon: signStatus == SignMediaStatus.failed
+            ? Icons.error_outline_rounded
+            : Icons.ondemand_video_rounded,
+        text: videoLabel,
+        trailing: signStatus == SignMediaStatus.failed
+            ? TextButton(
+                onPressed: onRetrySign,
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('Coba Lagi'),
+              )
+            : null,
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: lines,
+      ),
+    );
+  }
+}
+
+class _SourceLine extends StatelessWidget {
+  const _SourceLine({
+    required this.icon,
+    required this.text,
+    this.detail,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String text;
+  final String? detail;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text,
+                  style: AppTextStyles.labelSm.copyWith(
+                    color: scheme.onSurface,
+                  ),
+                ),
+                if (detail != null)
+                  Text(
+                    detail!,
+                    style: AppTextStyles.labelSm.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          ?trailing,
+        ],
+      ),
     );
   }
 }
