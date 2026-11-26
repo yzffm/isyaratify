@@ -323,7 +323,9 @@ void main() {
       expect(find.text('Ayesha'), findsOneWidget);
       expect(find.text('Siska'), findsOneWidget);
       expect(find.text('Wishang'), findsOneWidget);
-      expect(find.text('Muhammad Ilham'), findsOneWidget);
+      expect(find.text('Muhammad Nur Ilham'), findsOneWidget);
+      expect(find.text('ML & Data Engineer'), findsOneWidget);
+      expect(find.byTooltip('Buka GitHub Muhammad Nur Ilham'), findsOneWidget);
       expect(find.text('Ellyka'), findsOneWidget);
       expect(
         find.text(

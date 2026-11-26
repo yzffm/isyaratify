@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_strings.dart';
 import '../../core/layout/breakpoints.dart';
@@ -16,13 +17,40 @@ class AboutUsView extends StatelessWidget {
     TeamMember(
       name: 'Yusuf Maulana',
       role: 'Project Lead, Requirement, Dokumentasi',
+      githubUrl: 'https://github.com/yzffm',
     ),
-    TeamMember(name: 'Salsabila', role: 'Flutter UI/UX & Design System'),
-    TeamMember(name: 'Ayesha', role: 'Flutter App Logic & State Management'),
-    TeamMember(name: 'Siska', role: 'Web Camera & MediaPipe JS'),
-    TeamMember(name: 'Wishang', role: 'Android Camera & MediaPipe Native'),
-    TeamMember(name: 'Muhammad Ilham', role: 'ML/Data Engineer & Hugging Face'),
-    TeamMember(name: 'Ellyka', role: 'Supabase, QA, DevOps'),
+    TeamMember(
+      name: 'Salsabila',
+      role: 'Flutter UI/UX & Design System',
+      githubUrl: 'https://github.com/sllsav',
+    ),
+    TeamMember(
+      name: 'Ayesha',
+      role: 'Flutter App Logic & State Management',
+      githubUrl: 'https://github.com/ayeshahumayranadrarafianti-png',
+    ),
+    TeamMember(
+      name: 'Siska',
+      role: 'Web Camera & MediaPipe JS',
+      githubUrl: 'https://github.com/siskanurf11',
+    ),
+    TeamMember(
+      name: 'Wishang',
+      role: 'Android Camera & MediaPipe Native',
+      githubUrl: 'https://github.com/wsaktih',
+    ),
+    TeamMember(
+      name: 'Muhammad Nur Ilham',
+      role: 'ML & Data Engineer',
+      // Aktifkan baris di bawah setelah menambahkan foto ke assets/images/ilham.png:
+      // imageAsset: 'assets/images/ilham.png',
+      githubUrl: 'https://github.com/ilhaammm18',
+    ),
+    TeamMember(
+      name: 'Ellyka',
+      role: 'Supabase, QA, DevOps',
+      githubUrl: 'https://github.com/ellykaAl',
+    ),
   ];
 
   @override
@@ -307,11 +335,43 @@ class _TeamMemberCard extends StatelessWidget {
   final TeamMember member;
   final int index;
 
+  Future<void> _openGitHubUrl(BuildContext context, String rawUrl) async {
+    final uri = Uri.tryParse(rawUrl.trim());
+    if (uri == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Format tautan GitHub tidak valid.')),
+      );
+      return;
+    }
+
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal membuka tautan: $rawUrl')),
+        );
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membuka tautan: $rawUrl')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final ext = theme.extension<IsyaratifyColors>()!;
     final isAccent = index % 2 == 0;
+    final hasImage =
+        member.imageAsset != null && member.imageAsset!.trim().isNotEmpty;
+    final hasGithub =
+        member.githubUrl != null && member.githubUrl!.trim().isNotEmpty;
 
     return AppCard(
       padding: const EdgeInsets.all(18),
@@ -323,26 +383,61 @@ class _TeamMemberCard extends StatelessWidget {
             backgroundColor: isAccent
                 ? ext.primaryFixed
                 : ext.accentYellowLight,
-            child: Text(
-              member.initial,
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: isAccent
-                    ? ext.onPrimaryFixed
-                    : ext.onAccentYellowContainer,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            // Untuk mengganti foto profil dengan gambar aset asli (misal:
+            // 'assets/images/ilham.png'), isi `imageAsset` pada TeamMember atau
+            // ganti `backgroundImage` menjadi:
+            // backgroundImage: const AssetImage('assets/images/ilham.png'),
+            backgroundImage: hasImage ? AssetImage(member.imageAsset!) : null,
+            child: hasImage
+                ? null
+                : Text(
+                    member.initial,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: isAccent
+                          ? ext.onPrimaryFixed
+                          : ext.onAccentYellowContainer,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  member.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        member.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    if (hasGithub) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        key: ValueKey('github-btn-${member.name}'),
+                        tooltip: 'Buka GitHub ${member.name}',
+                        onPressed: () =>
+                            _openGitHubUrl(context, member.githubUrl!),
+                        style: IconButton.styleFrom(
+                          backgroundColor: ext.surfaceCanvas,
+                          foregroundColor: theme.colorScheme.onSurface,
+                          side: BorderSide(color: ext.borderSubtle),
+                          padding: const EdgeInsets.all(8),
+                          minimumSize: const Size(34, 34),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: _GitHubIcon(
+                          size: 18,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 6),
                 Container(
@@ -371,4 +466,71 @@ class _TeamMemberCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Ikon vektor GitHub (Octocat) kustom agar tidak bergantung pada paket ikon eksternal.
+class _GitHubIcon extends StatelessWidget {
+  const _GitHubIcon({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(painter: _GitHubIconPainter(color: color)),
+    );
+  }
+}
+
+class _GitHubIconPainter extends CustomPainter {
+  const _GitHubIconPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 24.0;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    final path = Path()
+      ..moveTo(12 * s, 2 * s)
+      ..cubicTo(6.477 * s, 2 * s, 2 * s, 6.484 * s, 2 * s, 12.017 * s)
+      ..cubicTo(2 * s, 16.442 * s, 4.865 * s, 20.197 * s, 8.839 * s, 21.521 * s)
+      ..cubicTo(9.339 * s, 21.613 * s, 9.521 * s, 21.304 * s, 9.521 * s, 21.038 * s)
+      ..cubicTo(9.521 * s, 20.801 * s, 9.512 * s, 20.174 * s, 9.508 * s, 19.342 * s)
+      ..cubicTo(6.726 * s, 19.947 * s, 6.139 * s, 17.999 * s, 6.139 * s, 17.999 * s)
+      ..cubicTo(5.685 * s, 16.842 * s, 5.029 * s, 16.534 * s, 5.029 * s, 16.534 * s)
+      ..cubicTo(4.121 * s, 15.913 * s, 5.098 * s, 15.926 * s, 5.098 * s, 15.926 * s)
+      ..cubicTo(6.101 * s, 15.996 * s, 6.629 * s, 16.958 * s, 6.629 * s, 16.958 * s)
+      ..cubicTo(7.521 * s, 18.487 * s, 8.97 * s, 18.045 * s, 9.539 * s, 17.789 * s)
+      ..cubicTo(9.631 * s, 17.142 * s, 9.889 * s, 16.701 * s, 10.175 * s, 16.451 * s)
+      ..cubicTo(7.955 * s, 16.198 * s, 5.62 * s, 15.339 * s, 5.62 * s, 11.503 * s)
+      ..cubicTo(5.62 * s, 10.41 * s, 6.01 * s, 9.516 * s, 6.649 * s, 8.816 * s)
+      ..cubicTo(6.546 * s, 8.563 * s, 6.203 * s, 7.545 * s, 6.747 * s, 6.167 * s)
+      ..cubicTo(6.747 * s, 6.167 * s, 7.586 * s, 5.898 * s, 9.497 * s, 7.194 * s)
+      ..cubicTo(10.295 * s, 6.972 * s, 11.15 * s, 6.861 * s, 12 * s, 6.857 * s)
+      ..cubicTo(12.85 * s, 6.861 * s, 13.705 * s, 6.972 * s, 14.505 * s, 7.194 * s)
+      ..cubicTo(16.414 * s, 5.898 * s, 17.251 * s, 6.167 * s, 17.251 * s, 6.167 * s)
+      ..cubicTo(17.797 * s, 7.545 * s, 17.454 * s, 8.563 * s, 17.351 * s, 8.816 * s)
+      ..cubicTo(17.992 * s, 9.516 * s, 18.379 * s, 10.41 * s, 18.379 * s, 11.503 * s)
+      ..cubicTo(18.379 * s, 15.349 * s, 16.04 * s, 16.195 * s, 13.813 * s, 16.443 * s)
+      ..cubicTo(14.172 * s, 16.753 * s, 14.492 * s, 17.365 * s, 14.492 * s, 18.301 * s)
+      ..cubicTo(14.492 * s, 19.642 * s, 14.48 * s, 20.724 * s, 14.48 * s, 21.038 * s)
+      ..cubicTo(14.48 * s, 21.306 * s, 14.66 * s, 21.618 * s, 15.168 * s, 21.52 * s)
+      ..cubicTo(19.138 * s, 20.193 * s, 22 * s, 16.44 * s, 22 * s, 12.017 * s)
+      ..cubicTo(22 * s, 6.484 * s, 17.522 * s, 2 * s, 12 * s, 2 * s)
+      ..close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GitHubIconPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
