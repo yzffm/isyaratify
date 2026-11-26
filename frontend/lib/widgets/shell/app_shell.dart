@@ -43,11 +43,14 @@ class _AppShellState extends State<AppShell> {
               ),
             )
           : null,
-        bottomNavigationBar: layoutSize == AppLayoutSize.compact
+      bottomNavigationBar: layoutSize == AppLayoutSize.compact
           ? Container(
-              color: const Color(0xFF1E1E2C), 
+              color: const Color(0xFF1E1E2C),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 12.0,
+                ),
                 child: GNav(
                   backgroundColor: const Color(0xFF1E1E2C),
                   color: Colors.white54,
@@ -55,7 +58,7 @@ class _AppShellState extends State<AppShell> {
                   tabBackgroundColor: const Color(0xFF434371),
                   gap: 8,
                   padding: const EdgeInsets.all(12),
-                  selectedIndex: selectedIndex, 
+                  selectedIndex: selectedIndex,
                   tabs: const [
                     GButton(icon: Icons.grid_view_rounded, text: 'Dashboard'),
                     GButton(icon: Icons.menu_book_rounded, text: 'Kamus'),
@@ -64,10 +67,18 @@ class _AppShellState extends State<AppShell> {
                   ],
                   onTabChange: (index) {
                     switch (index) {
-                      case 0: context.go('/home'); break;
-                      case 1: context.go('/dictionary'); break;
-                      case 2: context.go('/practice'); break;
-                      case 3: context.go('/profile'); break;
+                      case 0:
+                        context.go('/home');
+                        break;
+                      case 1:
+                        context.go('/dictionary');
+                        break;
+                      case 2:
+                        context.go('/practice');
+                        break;
+                      case 3:
+                        context.go('/profile');
+                        break;
                     }
                   },
                 ),
