@@ -236,6 +236,8 @@ class PracticeCameraStage extends StatelessWidget {
     final ext = IsyaratifyColors.of(context);
     final prediction = controller.latestPrediction;
     final isReady = controller.status == PracticeStatus.ready;
+    final showPreview =
+        isReady || controller.status == PracticeStatus.initializing;
     final hasLowScore = prediction != null && prediction.score < 0.60;
 
     final String liveBannerText;
@@ -274,13 +276,15 @@ class PracticeCameraStage extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (isReady)
-                    controller.buildCameraPreview(context)
-                  else
-                    _CameraUnavailableOverlay(
-                      status: controller.status,
-                      recoveryHint: controller.recoveryHint,
-                      onRetry: controller.initialize,
+                  if (showPreview) controller.buildCameraPreview(context),
+                  if (!isReady)
+                    ColoredBox(
+                      color: AppColors.cameraBackdrop,
+                      child: _CameraUnavailableOverlay(
+                        status: controller.status,
+                        recoveryHint: controller.recoveryHint,
+                        onRetry: controller.initialize,
+                      ),
                     ),
                   Positioned(
                     top: 12,

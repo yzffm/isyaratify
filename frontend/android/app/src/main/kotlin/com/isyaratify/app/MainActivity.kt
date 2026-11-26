@@ -42,18 +42,59 @@ class MainActivity : FlutterActivity() {
         private const val MIN_FRAME_INTERVAL_MS = 66L // Target ~15 FPS
     }
 
+    /**
+     * Pembungkus [MethodChannel.Result] dengan penjaga single-reply ([AtomicBoolean])
+     * untuk mencegah `IllegalStateException: Reply already submitted`.
+     */
+    private class SafeMethodResult(private val delegate: MethodChannel.Result) {
+        private val replied = AtomicBoolean(false)
+
+        val isDone: Boolean
+            get() = replied.get()
+
+        fun success(result: Any?) {
+            if (replied.compareAndSet(false, true)) {
+                try {
+                    delegate.success(result)
+                } catch (_: Throwable) {
+                }
+            }
+        }
+
+        fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+            if (replied.compareAndSet(false, true)) {
+                try {
+                    delegate.error(errorCode, errorMessage, errorDetails)
+                } catch (_: Throwable) {
+                }
+            }
+        }
+
+        fun notImplemented() {
+            if (replied.compareAndSet(false, true)) {
+                try {
+                    delegate.notImplemented()
+                } catch (_: Throwable) {
+                }
+            }
+        }
+    }
+
     private var flutterEngineRef: FlutterEngine? = null
     private var eventSink: EventChannel.EventSink? = null
-    private var pendingInitResult: MethodChannel.Result? = null
+    private var pendingInitResult: SafeMethodResult? = null
 
     private var textureEntry: TextureRegistry.SurfaceTextureEntry? = null
     private var previewSurface: Surface? = null
     private var cameraProvider: ProcessCameraProvider? = null
+    private var imageAnalysis: ImageAnalysis? = null
     private var handLandmarker: HandLandmarker? = null
     private var cameraExecutor: ExecutorService? = null
 
+    private val landmarkerLock = Any()
     private val isProcessingFrame = AtomicBoolean(false)
     private var lastFrameTimestampMs = 0L
+    private var lastDetectTimestampMs = 0L
     private var isFrontCamera = true
 
     private val isoFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
@@ -67,18 +108,19 @@ class MainActivity : FlutterActivity() {
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             METHOD_CHANNEL
-        ).setMethodCallHandler { call, result ->
+        ).setMethodCallHandler { call, rawResult ->
+            val safeResult = SafeMethodResult(rawResult)
             when (call.method) {
-                "initialize" -> handleInitialize(result)
+                "initialize" -> handleInitialize(safeResult)
                 "stop" -> {
                     stopCameraPipeline()
-                    result.success(null)
+                    safeResult.success(null)
                 }
                 "dispose" -> {
                     disposePipeline()
-                    result.success(null)
+                    safeResult.success(null)
                 }
-                else -> result.notImplemented()
+                else -> safeResult.notImplemented()
             }
         }
 
@@ -96,17 +138,31 @@ class MainActivity : FlutterActivity() {
         })
     }
 
-    private fun handleInitialize(result: MethodChannel.Result) {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED
-        ) {
-            startCameraAndLandmarker(result)
-        } else {
-            pendingInitResult = result
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.CAMERA),
-                CAMERA_PERMISSION_REQUEST_CODE
+    private fun handleInitialize(result: SafeMethodResult) {
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED
+            ) {
+                startCameraAndLandmarker(result)
+            } else {
+                // Jika ada request initialize sebelumnya yang masih menggantung, selesaikan dengan aman
+                pendingInitResult?.error(
+                    "CAMERA_UNAVAILABLE",
+                    "Permintaan inisialisasi kamera digantikan oleh permintaan baru.",
+                    null
+                )
+                pendingInitResult = result
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.CAMERA),
+                    CAMERA_PERMISSION_REQUEST_CODE
+                )
+            }
+        } catch (t: Throwable) {
+            result.error(
+                "CAMERA_UNAVAILABLE",
+                "Gagal memeriksa atau meminta izin kamera Android: ${t.message}",
+                null
             )
         }
     }
@@ -132,45 +188,56 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun startCameraAndLandmarker(result: MethodChannel.Result) {
+    private fun startCameraAndLandmarker(result: SafeMethodResult) {
+        if (isFinishing || isDestroyed) {
+            result.error("CAMERA_UNAVAILABLE", "Activity sedang ditutup.", null)
+            return
+        }
+
         if (cameraExecutor == null || cameraExecutor!!.isShutdown) {
             cameraExecutor = Executors.newSingleThreadExecutor()
         }
 
-        // 1. Inisialisasi MediaPipe HandLandmarker
-        if (handLandmarker == null) {
-            try {
-                val baseOptions = BaseOptions.builder()
-                    .setModelAssetPath(MODEL_ASSET_PATH)
-                    .build()
+        // 1. Inisialisasi MediaPipe HandLandmarker (tangkap Throwable termasuk UnsatisfiedLinkError / Error)
+        synchronized(landmarkerLock) {
+            if (handLandmarker == null) {
+                try {
+                    val baseOptions = BaseOptions.builder()
+                        .setModelAssetPath(MODEL_ASSET_PATH)
+                        .build()
 
-                val options = HandLandmarker.HandLandmarkerOptions.builder()
-                    .setBaseOptions(baseOptions)
-                    .setNumHands(2)
-                    .setMinHandDetectionConfidence(0.5f)
-                    .setMinHandPresenceConfidence(0.5f)
-                    .setMinTrackingConfidence(0.5f)
-                    .setRunningMode(RunningMode.LIVE_STREAM)
-                    .setResultListener(this::onHandLandmarkerResult)
-                    .setErrorListener { error ->
-                        runOnUiThread {
-                            eventSink?.error(
-                                "UNKNOWN",
-                                error.message ?: "Kesalahan runtime MediaPipe.",
-                                null
-                            )
+                    val options = HandLandmarker.HandLandmarkerOptions.builder()
+                        .setBaseOptions(baseOptions)
+                        .setNumHands(2)
+                        .setMinHandDetectionConfidence(0.5f)
+                        .setMinHandPresenceConfidence(0.5f)
+                        .setMinTrackingConfidence(0.5f)
+                        .setRunningMode(RunningMode.LIVE_STREAM)
+                        .setResultListener(this::onHandLandmarkerResult)
+                        .setErrorListener { error ->
+                            isProcessingFrame.set(false)
+                            runOnUiThread {
+                                try {
+                                    eventSink?.error(
+                                        "UNKNOWN",
+                                        error.message ?: "Kesalahan runtime MediaPipe.",
+                                        null
+                                    )
+                                } catch (_: Throwable) {
+                                }
+                            }
                         }
-                    }
-                    .build()
+                        .build()
 
-                handLandmarker = HandLandmarker.createFromOptions(this, options)
-            } catch (e: Exception) {
-                result.error(
-                    "MODEL_LOAD_FAILED",
-                    "Gagal memuat model MediaPipe ($MODEL_ASSET_PATH): ${e.message}",
-                    null
-                )
-                return
+                    handLandmarker = HandLandmarker.createFromOptions(this, options)
+                } catch (t: Throwable) {
+                    result.error(
+                        "MODEL_LOAD_FAILED",
+                        "Gagal memuat model MediaPipe ($MODEL_ASSET_PATH): ${t.message}",
+                        null
+                    )
+                    return
+                }
             }
         }
 
@@ -181,17 +248,42 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        if (textureEntry == null) {
-            textureEntry = engine.renderer.createSurfaceTexture()
+        val currentTextureEntry: TextureRegistry.SurfaceTextureEntry = try {
+            if (textureEntry == null) {
+                textureEntry = engine.renderer.createSurfaceTexture()
+            }
+            textureEntry!!
+        } catch (t: Throwable) {
+            result.error(
+                "CAMERA_UNAVAILABLE",
+                "Gagal menyiapkan tekstur pratinjau kamera: ${t.message}",
+                null
+            )
+            return
         }
-        val currentTextureEntry = textureEntry!!
 
         // 3. Jalankan CameraX
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
+        val cameraProviderFuture = try {
+            ProcessCameraProvider.getInstance(this)
+        } catch (t: Throwable) {
+            result.error(
+                "CAMERA_UNAVAILABLE",
+                "Gagal menginisialisasi ProcessCameraProvider: ${t.message}",
+                null
+            )
+            return
+        }
+
         cameraProviderFuture.addListener({
+            if (isFinishing || isDestroyed) {
+                result.error("CAMERA_UNAVAILABLE", "Activity telah ditutup.", null)
+                return@addListener
+            }
+
             try {
                 val provider = cameraProviderFuture.get()
                 cameraProvider = provider
+                imageAnalysis?.clearAnalyzer()
                 provider.unbindAll()
 
                 val selector = when {
@@ -218,38 +310,51 @@ class MainActivity : FlutterActivity() {
                     .build()
 
                 preview.setSurfaceProvider { request ->
-                    val surfaceTexture = currentTextureEntry.surfaceTexture()
-                    surfaceTexture.setDefaultBufferSize(
-                        request.resolution.width,
-                        request.resolution.height
-                    )
-                    previewSurface?.release()
-                    val surface = Surface(surfaceTexture)
-                    previewSurface = surface
-                    request.provideSurface(surface, ContextCompat.getMainExecutor(this)) {
-                        surface.release()
-                        if (previewSurface == surface) {
-                            previewSurface = null
+                    try {
+                        val surfaceTexture = currentTextureEntry.surfaceTexture()
+                        surfaceTexture.setDefaultBufferSize(
+                            request.resolution.width,
+                            request.resolution.height
+                        )
+                        previewSurface?.release()
+                        val surface = Surface(surfaceTexture)
+                        previewSurface = surface
+                        request.provideSurface(surface, ContextCompat.getMainExecutor(this)) {
+                            try {
+                                surface.release()
+                            } catch (_: Throwable) {
+                            }
+                            if (previewSurface == surface) {
+                                previewSurface = null
+                            }
                         }
+                    } catch (_: Throwable) {
                     }
                 }
 
-                val imageAnalysis = ImageAnalysis.Builder()
+                val analysis = ImageAnalysis.Builder()
                     .setTargetAspectRatio(AspectRatio.RATIO_4_3)
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .build()
 
-                imageAnalysis.setAnalyzer(cameraExecutor!!) { imageProxy ->
-                    processImageProxy(imageProxy)
+                val executor = cameraExecutor
+                if (executor == null || executor.isShutdown) {
+                    result.error("CAMERA_UNAVAILABLE", "Executor kamera tidak aktif.", null)
+                    return@addListener
                 }
 
-                provider.bindToLifecycle(this, selector, preview, imageAnalysis)
+                analysis.setAnalyzer(executor) { imageProxy ->
+                    processImageProxy(imageProxy)
+                }
+                imageAnalysis = analysis
+
+                provider.bindToLifecycle(this, selector, preview, analysis)
                 result.success(mapOf("textureId" to currentTextureEntry.id()))
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
                 result.error(
                     "CAMERA_UNAVAILABLE",
-                    "Gagal membuka kamera Android: ${e.message}",
+                    "Gagal membuka kamera Android: ${t.message}",
                     null
                 )
             }
@@ -266,14 +371,8 @@ class MainActivity : FlutterActivity() {
         }
         lastFrameTimestampMs = nowMs
 
+        var proxyClosed = false
         try {
-            val landmarker = handLandmarker
-            if (landmarker == null) {
-                isProcessingFrame.set(false)
-                imageProxy.close()
-                return
-            }
-
             val bitmapBuffer = Bitmap.createBitmap(
                 imageProxy.width,
                 imageProxy.height,
@@ -284,6 +383,7 @@ class MainActivity : FlutterActivity() {
 
             val rotationDegrees = imageProxy.imageInfo.rotationDegrees
             imageProxy.close()
+            proxyClosed = true
 
             val matrix = Matrix().apply {
                 postRotate(rotationDegrees.toFloat())
@@ -311,92 +411,141 @@ class MainActivity : FlutterActivity() {
             }
 
             val mpImage = BitmapImageBuilder(rotatedBitmap).build()
-            landmarker.detectAsync(mpImage, nowMs)
-        } catch (e: Exception) {
+            synchronized(landmarkerLock) {
+                val landmarker = handLandmarker
+                if (landmarker == null) {
+                    isProcessingFrame.set(false)
+                    return
+                }
+                // MediaPipe LIVE_STREAM mewajibkan timestamp strictly monotonically increasing
+                val detectTimestampMs = maxOf(nowMs, lastDetectTimestampMs + 1L)
+                lastDetectTimestampMs = detectTimestampMs
+                landmarker.detectAsync(mpImage, detectTimestampMs)
+            }
+        } catch (_: Throwable) {
             isProcessingFrame.set(false)
-            imageProxy.close()
+            if (!proxyClosed) {
+                try {
+                    imageProxy.close()
+                } catch (_: Throwable) {
+                }
+            }
         }
     }
 
     private fun onHandLandmarkerResult(result: HandLandmarkerResult, input: MPImage) {
         isProcessingFrame.set(false)
 
-        val landmarksPerHand = result.landmarks()
-        val worldLandmarksPerHand = result.worldLandmarks()
-        val handednesses = result.handednesses()
+        try {
+            val landmarksPerHand = result.landmarks()
+            val worldLandmarksPerHand = result.worldLandmarks()
+            val handednesses = result.handednesses()
 
-        val handsList = landmarksPerHand.indices.map { i ->
-            val handLandmarks = landmarksPerHand[i]
-            val category = handednesses.getOrNull(i)?.firstOrNull()
-            val rawSide = category?.categoryName()?.lowercase(Locale.US) ?: "right"
-            val side = if (rawSide == "left" || rawSide == "right") rawSide else "right"
-            val score = category?.score()?.toDouble()
+            val handsList = landmarksPerHand.indices.map { i ->
+                val handLandmarks = landmarksPerHand[i]
+                val category = handednesses.getOrNull(i)?.firstOrNull()
+                val rawSide = category?.categoryName()?.lowercase(Locale.US) ?: "right"
+                val side = if (rawSide == "left" || rawSide == "right") rawSide else "right"
+                val score = category?.score()?.toDouble()
 
-            val serializedLandmarks = handLandmarks.map { lm ->
-                mapOf(
-                    "x" to lm.x().toDouble(),
-                    "y" to lm.y().toDouble(),
-                    "z" to lm.z().toDouble()
+                val serializedLandmarks = handLandmarks.map { lm ->
+                    mapOf(
+                        "x" to lm.x().toDouble(),
+                        "y" to lm.y().toDouble(),
+                        "z" to lm.z().toDouble()
+                    )
+                }
+
+                val serializedWorldLandmarks = worldLandmarksPerHand.getOrNull(i)?.map { wlm ->
+                    mapOf(
+                        "x" to wlm.x().toDouble(),
+                        "y" to wlm.y().toDouble(),
+                        "z" to wlm.z().toDouble()
+                    )
+                }
+
+                val handMap = hashMapOf(
+                    "handedness" to side,
+                    "landmarks" to serializedLandmarks
                 )
+                if (score != null) {
+                    handMap["handednessScore"] = score
+                }
+                if (serializedWorldLandmarks != null && serializedWorldLandmarks.size == 21) {
+                    handMap["worldLandmarks"] = serializedWorldLandmarks
+                }
+                handMap
             }
 
-            val serializedWorldLandmarks = worldLandmarksPerHand.getOrNull(i)?.map { wlm ->
-                mapOf(
-                    "x" to wlm.x().toDouble(),
-                    "y" to wlm.y().toDouble(),
-                    "z" to wlm.z().toDouble()
-                )
-            }
-
-            val handMap = hashMapOf(
-                "handedness" to side,
-                "landmarks" to serializedLandmarks
+            val framePayload = mapOf(
+                "timestamp" to synchronized(isoFormatter) { isoFormatter.format(Date()) },
+                "hands" to handsList,
+                "imageWidth" to input.width,
+                "imageHeight" to input.height,
+                "isMirrored" to isFrontCamera
             )
-            if (score != null) {
-                handMap["handednessScore"] = score
-            }
-            if (serializedWorldLandmarks != null && serializedWorldLandmarks.size == 21) {
-                handMap["worldLandmarks"] = serializedWorldLandmarks
-            }
-            handMap
-        }
 
-        val framePayload = mapOf(
-            "timestamp" to synchronized(isoFormatter) { isoFormatter.format(Date()) },
-            "hands" to handsList,
-            "imageWidth" to input.width,
-            "imageHeight" to input.height,
-            "isMirrored" to isFrontCamera
-        )
-
-        runOnUiThread {
-            eventSink?.success(framePayload)
+            runOnUiThread {
+                try {
+                    eventSink?.success(framePayload)
+                } catch (_: Throwable) {
+                }
+            }
+        } catch (_: Throwable) {
         }
     }
 
     private fun stopCameraPipeline() {
         try {
+            imageAnalysis?.clearAnalyzer()
+        } catch (_: Throwable) {
+        }
+        imageAnalysis = null
+
+        try {
             cameraProvider?.unbindAll()
-        } catch (e: Exception) {
+        } catch (_: Throwable) {
         }
         isProcessingFrame.set(false)
     }
 
     private fun disposePipeline() {
         stopCameraPipeline()
-        previewSurface?.release()
-        previewSurface = null
-        textureEntry?.release()
-        textureEntry = null
 
-        cameraExecutor?.shutdown()
+        pendingInitResult?.error(
+            "CAMERA_UNAVAILABLE",
+            "Pipeline kamera ditutup sebelum inisialisasi selesai.",
+            null
+        )
+        pendingInitResult = null
+
+        val executorToShutdown = cameraExecutor
         cameraExecutor = null
+        try {
+            executorToShutdown?.shutdown()
+        } catch (_: Throwable) {
+        }
+
+        synchronized(landmarkerLock) {
+            try {
+                handLandmarker?.close()
+            } catch (_: Throwable) {
+            }
+            handLandmarker = null
+        }
 
         try {
-            handLandmarker?.close()
-        } catch (e: Exception) {
+            previewSurface?.release()
+        } catch (_: Throwable) {
         }
-        handLandmarker = null
+        previewSurface = null
+
+        try {
+            textureEntry?.release()
+        } catch (_: Throwable) {
+        }
+        textureEntry = null
+
         eventSink = null
     }
 

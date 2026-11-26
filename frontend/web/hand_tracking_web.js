@@ -11,6 +11,11 @@
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
   const HAND_LANDMARKER_MODEL_URL =
     'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+  const HAND_LANDMARKER_MODEL_URLS = [
+    HAND_LANDMARKER_MODEL_URL,
+    'assets/assets/hand_landmarker/hand_landmarker.task',
+    'assets/hand_landmarker/hand_landmarker.task',
+  ];
 
   // Target ~12 FPS inferensi lokal untuk menjaga responsivitas UI
   const MIN_FRAME_INTERVAL_MS = 82;
@@ -18,13 +23,37 @@
   let visionModule = null;
   let handLandmarker = null;
   let mediaStream = null;
+  let containerElement = null;
+  let activeContainerId = null;
   let videoElement = null;
   let canvasElement = null;
   let rafId = null;
   let isProcessing = false;
   let lastInferenceTime = 0;
 
+  function attachStreamToVideo() {
+    if (!videoElement || !mediaStream) return;
+    if (videoElement.srcObject !== mediaStream) {
+      videoElement.srcObject = mediaStream;
+    }
+    const playPromise = videoElement.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(function (_) {});
+    }
+  }
+
   function ensureContainerElements(containerId) {
+    if (
+      containerElement &&
+      activeContainerId === containerId &&
+      videoElement &&
+      canvasElement
+    ) {
+      attachStreamToVideo();
+      setTimeout(attachStreamToVideo, 0);
+      return containerElement;
+    }
+
     let container = document.getElementById(containerId);
     if (!container) {
       container = document.createElement('div');
@@ -39,26 +68,39 @@
       container.innerHTML = '';
     }
 
-    videoElement = document.createElement('video');
-    videoElement.setAttribute('playsinline', 'true');
-    videoElement.setAttribute('autoplay', 'true');
-    videoElement.muted = true;
-    videoElement.style.width = '100%';
-    videoElement.style.height = '100%';
-    videoElement.style.objectFit = 'cover';
-    videoElement.style.transform = 'scaleX(-1)';
+    if (!videoElement) {
+      videoElement = document.createElement('video');
+      videoElement.setAttribute('playsinline', 'true');
+      videoElement.setAttribute('autoplay', 'true');
+      videoElement.muted = true;
+      videoElement.style.width = '100%';
+      videoElement.style.height = '100%';
+      videoElement.style.objectFit = 'cover';
+      videoElement.style.transform = 'scaleX(-1)';
+    }
 
-    canvasElement = document.createElement('canvas');
-    canvasElement.style.position = 'absolute';
-    canvasElement.style.top = '0';
-    canvasElement.style.left = '0';
-    canvasElement.style.width = '100%';
-    canvasElement.style.height = '100%';
-    canvasElement.style.pointerEvents = 'none';
-    canvasElement.style.transform = 'scaleX(-1)';
+    if (!canvasElement) {
+      canvasElement = document.createElement('canvas');
+      canvasElement.style.position = 'absolute';
+      canvasElement.style.top = '0';
+      canvasElement.style.left = '0';
+      canvasElement.style.width = '100%';
+      canvasElement.style.height = '100%';
+      canvasElement.style.pointerEvents = 'none';
+      canvasElement.style.transform = 'scaleX(-1)';
+    }
 
-    container.appendChild(videoElement);
-    container.appendChild(canvasElement);
+    if (videoElement.parentNode !== container) {
+      container.appendChild(videoElement);
+    }
+    if (canvasElement.parentNode !== container) {
+      container.appendChild(canvasElement);
+    }
+
+    containerElement = container;
+    activeContainerId = containerId;
+    attachStreamToVideo();
+    setTimeout(attachStreamToVideo, 0);
     return container;
   }
 
@@ -144,8 +186,8 @@
       throw err;
     }
 
-    videoElement.srcObject = mediaStream;
-    await videoElement.play();
+    attachStreamToVideo();
+    await videoElement.play().catch(function (_) {});
 
     if (!handLandmarker) {
       try {
@@ -155,19 +197,9 @@
         const fileset = await visionModule.FilesetResolver.forVisionTasks(
           MEDIAPIPE_WASM_ROOT
         );
-        handLandmarker = await visionModule.HandLandmarker.createFromOptions(
-          fileset,
-          {
-            baseOptions: {
-              modelAssetPath: HAND_LANDMARKER_MODEL_URL,
-              delegate: 'GPU',
-            },
-            runningMode: 'VIDEO',
-            numHands: 2,
-            minHandDetectionConfidence: 0.5,
-            minHandPresenceConfidence: 0.5,
-            minTrackingConfidence: 0.5,
-          }
+        handLandmarker = await createHandLandmarkerWithFallback(
+          visionModule,
+          fileset
         );
       } catch (e) {
         stopTracks();
@@ -180,14 +212,45 @@
     }
   }
 
+  async function createHandLandmarkerWithFallback(vision, fileset) {
+    const delegates = ['GPU', 'CPU'];
+    let lastError = null;
+
+    for (const modelUrl of HAND_LANDMARKER_MODEL_URLS) {
+      for (const delegate of delegates) {
+        try {
+          return await vision.HandLandmarker.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath: modelUrl,
+              delegate: delegate,
+            },
+            runningMode: 'VIDEO',
+            numHands: 2,
+            minHandDetectionConfidence: 0.5,
+            minHandPresenceConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+          });
+        } catch (err) {
+          lastError = err;
+        }
+      }
+    }
+
+    throw lastError || new Error('Gagal membuat instance HandLandmarker.');
+  }
+
   function start(onFrameJson, onError) {
     cancelLoop();
     lastInferenceTime = 0;
+    attachStreamToVideo();
 
     function loop(now) {
       rafId = window.requestAnimationFrame(loop);
       if (isProcessing) return;
       if (now - lastInferenceTime < MIN_FRAME_INTERVAL_MS) return;
+      if (videoElement && mediaStream && videoElement.paused) {
+        attachStreamToVideo();
+      }
       if (!videoElement || videoElement.readyState < 2 || !handLandmarker) return;
 
       isProcessing = true;
