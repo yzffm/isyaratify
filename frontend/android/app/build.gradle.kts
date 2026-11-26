@@ -27,9 +27,19 @@ android {
         versionName = flutter.versionName
     }
 
+    androidResources {
+        noCompress += listOf("task", "tflite")
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
